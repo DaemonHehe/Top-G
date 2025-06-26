@@ -1,6 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/router";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -15,7 +17,7 @@ export default function Home() {
           router.push("/dashboard");
         }
       } catch (error) {
-        console.log("Not authenticated");
+        console.log("Not authenticated", error);
       }
     };
 
