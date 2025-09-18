@@ -1,26 +1,207 @@
-@import "tailwindcss";
+﻿@import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f3f4f8;
+  --background-muted: #e9ecf6;
+  --surface: #ffffff;
+  --surface-subtle: #f6f7fb;
+  --border: #d9dce7;
+  --text-primary: #111827;
+  --text-secondary: #475467;
+  --text-muted: rgba(71, 84, 103, 0.75);
+  --text-extra-muted: rgba(71, 84, 103, 0.55);
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-contrast: #ffffff;
+  --danger: #ef4444;
+  --danger-hover: #dc2626;
+  --danger-contrast: #ffffff;
+  --danger-bg: rgba(239, 68, 68, 0.12);
+  --danger-border: rgba(239, 68, 68, 0.35);
+  --danger-text: #b91c1c;
+  --success-bg: #ecfdf3;
+  --success-border: #bbf7d0;
+  --success-text: #15803d;
+  --success-accent: #16a34a;
+  --success-accent-hover: #15803d;
+  --success-contrast: #ffffff;
+  --neutral-bg: rgba(148, 163, 184, 0.12);
+  --neutral-border: rgba(148, 163, 184, 0.35);
+  --neutral-text: rgba(71, 84, 103, 0.85);
+  --neutral-hover: rgba(148, 163, 184, 0.22);
+  --warning-text: #ea580c;
+  --warning-bg: #fff7ed;
+  --warning-border: #fdba74;
+  --card-shadow: 0 24px 55px rgba(30, 41, 59, 0.12);
+  --input-shadow: 0 18px 45px rgba(37, 99, 235, 0.08);
+  --muted: rgba(148, 163, 184, 0.25);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #050505;
+  --background-muted: #0d0d0f;
+  --surface: #111112;
+  --surface-subtle: #161618;
+  --border: #27272a;
+  --text-primary: #f8f9fc;
+  --text-secondary: #cbd5f5;
+  --text-muted: rgba(203, 213, 245, 0.82);
+  --text-extra-muted: rgba(203, 213, 245, 0.62);
+  --accent: #ef4444;
+  --accent-hover: #dc2626;
+  --accent-contrast: #0b0b0b;
+  --danger: #f87171;
+  --danger-hover: #fb7185;
+  --danger-contrast: #0b0b0b;
+  --danger-bg: rgba(239, 68, 68, 0.18);
+  --danger-border: rgba(239, 68, 68, 0.35);
+  --danger-text: #fecaca;
+  --success-bg: rgba(34, 197, 94, 0.12);
+  --success-border: rgba(34, 197, 94, 0.35);
+  --success-text: #86efac;
+  --success-accent: #22c55e;
+  --success-accent-hover: #16a34a;
+  --success-contrast: #0b0b0b;
+  --neutral-bg: rgba(148, 163, 184, 0.12);
+  --neutral-border: rgba(148, 163, 184, 0.25);
+  --neutral-text: rgba(203, 213, 245, 0.7);
+  --neutral-hover: rgba(239, 68, 68, 0.22);
+  --warning-text: #fb923c;
+  --warning-bg: rgba(249, 115, 22, 0.16);
+  --warning-border: rgba(249, 115, 22, 0.35);
+  --card-shadow: 0 28px 65px rgba(239, 68, 68, 0.24);
+  --input-shadow: 0 20px 45px rgba(239, 68, 68, 0.18);
+  --muted: rgba(239, 68, 68, 0.2);
 }
 
 body {
   background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--text-primary);
+  font-family: var(--font-geist-sans), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  transition: background 0.3s ease, color 0.3s ease;
+  min-height: 100vh;
+}
+
+a {
+  color: var(--accent);
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--accent-hover);
+}
+
+input,
+textarea,
+select {
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, color 0.2s ease;
+  box-shadow: var(--input-shadow);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
+  background: var(--surface);
+}
+
+::placeholder {
+  color: color-mix(in srgb, var(--text-secondary) 60%, transparent);
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.9rem;
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 85%, #ffffff 15%));
+  color: var(--accent-contrast);
+  font-weight: 600;
+  padding: 0.8rem 1.5rem;
+  transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 18px 35px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  background: linear-gradient(135deg, var(--accent-hover), color-mix(in srgb, var(--accent-hover) 80%, #ffffff 20%));
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.9rem;
+  border: 1px solid var(--border);
+  padding: 0.8rem 1.5rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  transition: border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.btn-secondary:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.theme-card {
+  background: var(--surface);
+  border-radius: 1.5rem;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  box-shadow: var(--card-shadow);
+  transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.theme-section-title {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.theme-text-muted {
+  color: var(--text-secondary);
+}
+
+.theme-divider {
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+}
+
+.theme-badge {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 0.35rem 1rem;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.theme-badge-danger {
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  color: var(--danger-text);
+  border-radius: 0.75rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.theme-surface-subtle {
+  background: var(--surface-subtle);
+  border-radius: 1rem;
+}
+
+button:disabled,
+button[disabled] {
+  cursor: not-allowed;
+  opacity: 0.7;
 }

@@ -1,5 +1,7 @@
-import { useState, useEffect } from "react";
-import { useRouter } from "next/router";
+'use client';
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function Dashboard() {
   const [tasks, setTasks] = useState([]);
@@ -15,7 +17,9 @@ export default function Dashboard() {
 
   const fetchTasks = async () => {
     try {
-      const response = await fetch("/api/tasks");
+      const response = await fetch("/api/tasks", {
+        credentials: "include",
+      });
       if (response.ok) {
         const data = await response.json();
         setTasks(data);
@@ -37,6 +41,7 @@ export default function Dashboard() {
 
     try {
       const response = await fetch("/api/tasks", {
+        credentials: "include",
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -59,6 +64,7 @@ export default function Dashboard() {
   const handleUpdateTask = async (taskId, updates) => {
     try {
       const response = await fetch(`/api/tasks/${taskId}`, {
+        credentials: "include",
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -83,6 +89,7 @@ export default function Dashboard() {
 
     try {
       const response = await fetch(`/api/tasks/${taskId}`, {
+        credentials: "include",
         method: "DELETE",
       });
 
@@ -100,7 +107,7 @@ export default function Dashboard() {
 
   const handleLogout = async () => {
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
       router.push("/");
     } catch (error) {
       console.error("Logout error:", error);
@@ -112,26 +119,26 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-[var(--background-muted)] flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading your tasks...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--accent)] mx-auto"></div>
+          <p className="mt-4 text-[var(--text-secondary)]">Loading your tasks...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white shadow-sm">
+    <div className="min-h-screen bg-[var(--background-muted)]">
+      <div className="bg-[var(--surface)] shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
-            <h1 className="text-2xl font-bold text-gray-900">
+            <h1 className="text-2xl font-bold text-[var(--text-primary)]">
               Daily Task Tracker
             </h1>
             <button
               onClick={handleLogout}
-              className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition duration-200"
+              className="bg-[var(--danger)] text-[var(--danger-contrast)] px-4 py-2 rounded-lg hover:bg-[var(--danger-hover)] transition duration-200"
             >
               Logout
             </button>
@@ -141,8 +148,11 @@ export default function Dashboard() {
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Add Task Form */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+        <div
+          className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-8 mb-8"
+          style={{ boxShadow: "var(--card-shadow)" }}
+        >
+          <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4">
             Add New Task
           </h2>
           <form onSubmit={handleAddTask} className="space-y-4">
@@ -154,7 +164,7 @@ export default function Dashboard() {
                 onChange={(e) =>
                   setNewTask((prev) => ({ ...prev, title: e.target.value }))
                 }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                 required
               />
             </div>
@@ -168,13 +178,13 @@ export default function Dashboard() {
                     description: e.target.value,
                   }))
                 }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 h-20 resize-none"
+                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] h-20 resize-none"
               />
             </div>
             <button
               type="submit"
               disabled={isAddingTask}
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition duration-200 disabled:opacity-50"
+              className="bg-[var(--accent)] text-[var(--accent-contrast)] px-6 py-2 rounded-lg hover:bg-[var(--accent-hover)] transition duration-200 disabled:opacity-50"
             >
               {isAddingTask ? "Adding..." : "Add Task"}
             </button>
@@ -183,19 +193,28 @@ export default function Dashboard() {
 
         {/* Task Statistics */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-lg font-semibold text-gray-900">Total Tasks</h3>
-            <p className="text-3xl font-bold text-blue-600">{tasks.length}</p>
+          <div
+            className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-6"
+              style={{ boxShadow: "var(--card-shadow)" }}
+            >
+            <h3 className="text-lg font-semibold text-[var(--text-primary)]">Total Tasks</h3>
+            <p className="text-3xl font-bold text-[var(--accent)]">{tasks.length}</p>
           </div>
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-lg font-semibold text-gray-900">Completed</h3>
-            <p className="text-3xl font-bold text-green-600">
+          <div
+            className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-6"
+              style={{ boxShadow: "var(--card-shadow)" }}
+            >
+            <h3 className="text-lg font-semibold text-[var(--text-primary)]">Completed</h3>
+            <p className="text-3xl font-bold text-[var(--success-text)]">
               {completedTasks.length}
             </p>
           </div>
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-lg font-semibold text-gray-900">Pending</h3>
-            <p className="text-3xl font-bold text-orange-600">
+          <div
+            className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-6"
+              style={{ boxShadow: "var(--card-shadow)" }}
+            >
+            <h3 className="text-lg font-semibold text-[var(--text-primary)]">Pending</h3>
+            <p className="text-3xl font-bold text-[var(--warning-text)]">
               {pendingTasks.length}
             </p>
           </div>
@@ -205,8 +224,11 @@ export default function Dashboard() {
         <div className="space-y-6">
           {/* Pending Tasks */}
           {pendingTasks.length > 0 && (
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">
+            <div
+              className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-6"
+              style={{ boxShadow: "var(--card-shadow)" }}
+            >
+              <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-4">
                 Pending Tasks
               </h2>
               <div className="space-y-4">
@@ -227,8 +249,11 @@ export default function Dashboard() {
 
           {/* Completed Tasks */}
           {completedTasks.length > 0 && (
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">
+            <div
+              className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-6"
+              style={{ boxShadow: "var(--card-shadow)" }}
+            >
+              <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-4">
                 Completed Tasks
               </h2>
               <div className="space-y-4">
@@ -248,8 +273,11 @@ export default function Dashboard() {
           )}
 
           {tasks.length === 0 && (
-            <div className="bg-white rounded-lg shadow-md p-12 text-center">
-              <p className="text-gray-500 text-lg">
+            <div
+              className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-12 text-center"
+              style={{ boxShadow: "var(--card-shadow)" }}
+            >
+              <p className="text-[var(--text-muted)] text-lg">
                 No tasks yet. Create your first task above!
               </p>
             </div>
@@ -300,11 +328,12 @@ function TaskItem({
 
   return (
     <div
-      className={`border rounded-lg p-4 ${
+      className={`border rounded-2xl p-5 ${
         task.completed
-          ? "bg-green-50 border-green-200"
-          : "bg-white border-gray-200"
+          ? "bg-[var(--success-bg)] border-[var(--success-border)]"
+          : "bg-[var(--surface)] border-[var(--border)]"
       }`}
+      style={{ boxShadow: "var(--card-shadow)" }}
     >
       {isEditing ? (
         <form onSubmit={handleSaveEdit} className="space-y-3">
@@ -314,7 +343,7 @@ function TaskItem({
             onChange={(e) =>
               setEditForm((prev) => ({ ...prev, title: e.target.value }))
             }
-            className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-[var(--border)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
             required
           />
           <textarea
@@ -322,20 +351,20 @@ function TaskItem({
             onChange={(e) =>
               setEditForm((prev) => ({ ...prev, description: e.target.value }))
             }
-            className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 h-20 resize-none"
+            className="w-full px-3 py-2 border border-[var(--border)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--accent)] h-20 resize-none"
             placeholder="Task description..."
           />
           <div className="flex gap-2">
             <button
               type="submit"
-              className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition duration-200"
+              className="bg-[var(--success-accent)] text-[var(--success-contrast)] px-3 py-1 rounded-lg hover:bg-[var(--success-accent-hover)] transition duration-200"
             >
               Save
             </button>
             <button
               type="button"
               onClick={handleCancelEdit}
-              className="bg-gray-500 text-white px-3 py-1 rounded hover:bg-gray-600 transition duration-200"
+              className="border border-[var(--border)] px-3 py-1 rounded-lg text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition duration-200"
             >
               Cancel
             </button>
@@ -347,12 +376,12 @@ function TaskItem({
             type="checkbox"
             checked={task.completed}
             onChange={() => onToggleComplete(task._id, task.completed)}
-            className="mt-1 h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+            className="mt-1 h-5 w-5 text-[var(--accent)] rounded border-[var(--border)] focus:ring-[var(--accent)]"
           />
           <div className="flex-1 min-w-0">
             <h3
               className={`font-medium ${
-                task.completed ? "line-through text-gray-500" : "text-gray-900"
+                task.completed ? "line-through text-[var(--text-muted)]" : "text-[var(--text-primary)]"
               }`}
             >
               {task.title}
@@ -361,27 +390,27 @@ function TaskItem({
               <p
                 className={`mt-1 text-sm ${
                   task.completed
-                    ? "line-through text-gray-400"
-                    : "text-gray-600"
+                    ? "line-through text-[var(--text-extra-muted)]"
+                    : "text-[var(--text-secondary)]"
                 }`}
               >
                 {task.description}
               </p>
             )}
-            <p className="mt-2 text-xs text-gray-400">
+            <p className="mt-2 text-xs text-[var(--text-extra-muted)]">
               Created: {new Date(task.createdAt).toLocaleDateString()}
             </p>
           </div>
           <div className="flex gap-2">
             <button
               onClick={handleEdit}
-              className="text-blue-600 hover:text-blue-800 text-sm"
+              className="text-[var(--accent)] hover:text-[var(--accent-hover)] text-sm"
             >
               Edit
             </button>
             <button
               onClick={() => onDelete(task._id)}
-              className="text-red-600 hover:text-red-800 text-sm"
+              className="text-[var(--danger)] hover:text-[var(--danger-hover)] text-sm"
             >
               Delete
             </button>
@@ -391,3 +420,20 @@ function TaskItem({
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
