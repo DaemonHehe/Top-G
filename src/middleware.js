@@ -8,7 +8,10 @@ export function middleware(request) {
   const hasToken = Boolean(token);
 
   const isDashboardRoute = pathname.startsWith("/dashboard");
-  const isProtectedApi = pathname.startsWith("/api/tasks") || pathname.startsWith("/api/users");
+  const isProtectedApi =
+    pathname.startsWith("/api/tasks") ||
+    pathname.startsWith("/api/users") ||
+    pathname.startsWith("/api/lifts");
   const isAuthPage = AUTH_PAGES.has(pathname);
 
   if ((isDashboardRoute || isProtectedApi) && !hasToken) {
@@ -27,5 +30,13 @@ export function middleware(request) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/login", "/register", "/api/tasks/:path*", "/api/users/:path*"],
+  matcher: [
+    "/dashboard/:path*",
+    "/login",
+    "/register",
+    "/api/tasks/:path*",
+    "/api/users/:path*",
+    "/api/lifts/:path*",
+  ],
 };
+

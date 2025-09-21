@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { requireAuth } from "../../../lib/api-utils";
 import { serializeTask } from "../route";
@@ -10,7 +10,21 @@ function parseObjectId(id) {
   return new ObjectId(id);
 }
 
-export async function GET(request, { params }) {
+function unwrapFindOneAndModifyResult(result) {
+  if (!result) {
+    return null;
+  }
+
+  if (typeof result === "object" && "value" in result) {
+    return result.value;
+  }
+
+  return result;
+}
+
+export async function GET(request, context) {
+  const params = (await context.params) ?? {};
+
   const auth = await requireAuth(request);
   if (auth.error) {
     return auth.error;
@@ -22,9 +36,10 @@ export async function GET(request, { params }) {
   }
 
   try {
+    const userObjectId = new ObjectId(auth.userId);
     const task = await auth.db.collection("tasks").findOne({
       _id: taskId,
-      userId: new ObjectId(auth.userId),
+      userId: userObjectId,
     });
 
     if (!task) {
@@ -38,7 +53,9 @@ export async function GET(request, { params }) {
   }
 }
 
-export async function PUT(request, { params }) {
+export async function PUT(request, context) {
+  const params = (await context.params) ?? {};
+
   const auth = await requireAuth(request);
   if (auth.error) {
     return auth.error;
@@ -57,6 +74,7 @@ export async function PUT(request, { params }) {
   }
 
   const update = { updatedAt: new Date() };
+  const allowedStatuses = new Set(["pending", "completed", "failed"]);
 
   if (body.title !== undefined) {
     const title = typeof body.title === "string" ? body.title.trim() : "";
@@ -67,33 +85,53 @@ export async function PUT(request, { params }) {
   }
 
   if (body.description !== undefined) {
-    update.description =
-      typeof body.description === "string" ? body.description.trim() : "";
+    update.description = (
+      typeof body.description === "string" ? body.description.trim() : ""
+    );
+  }
+
+  if (body.status !== undefined) {
+    const status =
+      typeof body.status === "string" ? body.status.trim().toLowerCase() : "";
+    if (!allowedStatuses.has(status)) {
+      return NextResponse.json({ message: "Invalid status" }, { status: 400 });
+    }
+    update.status = status;
+    update.completed = status === "completed";
   }
 
   if (body.completed !== undefined) {
-    update.completed = Boolean(body.completed);
+    const completed = Boolean(body.completed);
+    update.completed = completed;
+    if (update.status === undefined) {
+      update.status = completed ? "completed" : "pending";
+    }
   }
 
   try {
-    const result = await auth.db.collection("tasks").findOneAndUpdate(
-      { _id: taskId, userId: new ObjectId(auth.userId) },
+    const userObjectId = new ObjectId(auth.userId);
+    const rawResult = await auth.db.collection("tasks").findOneAndUpdate(
+      { _id: taskId, userId: userObjectId },
       { $set: update },
       { returnDocument: "after" }
     );
 
-    if (!result.value) {
+    const updatedTask = unwrapFindOneAndModifyResult(rawResult);
+
+    if (!updatedTask) {
       return NextResponse.json({ message: "Task not found" }, { status: 404 });
     }
 
-    return NextResponse.json(serializeTask(result.value), { status: 200 });
+    return NextResponse.json(serializeTask(updatedTask), { status: 200 });
   } catch (error) {
     console.error("Task update error:", error);
     return NextResponse.json({ message: "Internal server error" }, { status: 500 });
   }
 }
 
-export async function DELETE(request, { params }) {
+export async function DELETE(request, context) {
+  const params = (await context.params) ?? {};
+
   const auth = await requireAuth(request);
   if (auth.error) {
     return auth.error;
@@ -105,9 +143,10 @@ export async function DELETE(request, { params }) {
   }
 
   try {
+    const userObjectId = new ObjectId(auth.userId);
     const result = await auth.db.collection("tasks").deleteOne({
       _id: taskId,
-      userId: new ObjectId(auth.userId),
+      userId: userObjectId,
     });
 
     if (result.deletedCount === 0) {

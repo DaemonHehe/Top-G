@@ -1,18 +1,157 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import NavigationBar from "../../components/navigation-bar";
+import { BIG_FOUR_EXERCISES, getExerciseById, findExerciseIdByLabel } from "../../lib/exercises";
 import { useRouter } from "next/navigation";
+
+const STATUS_LABELS = {
+  pending: "Pending",
+  completed: "Completed",
+  failed: "Logged as failed",
+};
+
+const STATUS_BADGE_CLASSES = {
+  pending: "bg-[var(--neutral-bg)] border border-[var(--neutral-border)] text-[var(--neutral-text)]",
+  completed: "bg-[var(--success-bg)] border border-[var(--success-border)] text-[var(--success-text)]",
+  failed: "bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger-text)]",
+};
+
+const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const COMPACT_WEEKDAY_LABELS = ["Mon", "", "Wed", "", "Fri", "", "Sun"];
+
+
+const CONTRIBUTION_LEVEL_STYLES = [
+  { backgroundColor: "var(--surface-muted)", borderColor: "var(--border)", opacity: 1 },
+  { backgroundColor: "var(--accent)", borderColor: "var(--accent)", opacity: 0.25 },
+  { backgroundColor: "var(--accent)", borderColor: "var(--accent)", opacity: 0.45 },
+  { backgroundColor: "var(--accent)", borderColor: "var(--accent)", opacity: 0.65 },
+  { backgroundColor: "var(--accent)", borderColor: "var(--accent)", opacity: 0.85 },
+];
+
+const WEEKS_TO_SHOW = 53;
+
+function startOfDay(date) {
+  const copy = new Date(date);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
+function toISODate(date) {
+  return startOfDay(date).toISOString().slice(0, 10);
+}
+
+function shiftDate(date, amount) {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + amount);
+  return copy;
+}
+
+function getIsoDay(date) {
+  return (date.getDay() + 6) % 7;
+}
+
+const normaliseTask = (task) => {
+  const status = task.status ?? (task.completed ? "completed" : "pending");
+  return { ...task, status };
+};
+
+const formatDate = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+};
+
+const getTaskTimestamp = (task) => {
+  const source = task.updatedAt || task.createdAt;
+  const when = source ? new Date(source) : null;
+  return when && !Number.isNaN(when.getTime()) ? when : null;
+};
+
+const normaliseLift = (lift) => {
+  if (!lift) return null;
+  const weight = Number(lift.weight);
+  const reps = Number(lift.reps);
+  const recordedAt = lift.recordedAt ? new Date(lift.recordedAt).getTime() : 0;
+  const exerciseId = lift.exerciseId || findExerciseIdByLabel(lift.exercise);
+  const canonical = exerciseId ? getExerciseById(exerciseId) : null;
+  const exerciseLabel = canonical?.label || lift.exerciseLabel || lift.exercise || "";
+
+  return {
+    ...lift,
+    _id: lift._id || lift.id,
+    exerciseId: exerciseId || null,
+    exerciseLabel,
+    exercise: exerciseLabel,
+    weight: Number.isFinite(weight) ? weight : 0,
+    reps: Number.isFinite(reps) ? reps : 0,
+    recordedAt,
+  };
+};
+function getTaskCompletionDate(task) {
+  if (!task) return null;
+  const status = task.status ?? (task.completed ? "completed" : undefined);
+  if (status !== "completed") return null;
+  const source = task.completedAt || task.updatedAt || task.createdAt;
+  if (!source) return null;
+  const date = new Date(source);
+  if (Number.isNaN(date.getTime())) return null;
+  return startOfDay(date);
+}
+
+function getPersonalRecordDates(lifts = []) {
+  if (!Array.isArray(lifts) || lifts.length === 0) {
+    return [];
+  }
+
+  const sorted = lifts
+    .filter((lift) => Number.isFinite(lift?.recordedAt) && lift.recordedAt > 0)
+    .sort((a, b) => a.recordedAt - b.recordedAt);
+
+  const bestByExercise = new Map();
+  const records = [];
+
+  for (const lift of sorted) {
+    const key = lift.exerciseId || lift.exerciseLabel?.toLowerCase() || lift.exercise?.toLowerCase();
+    if (!key || !Number.isFinite(lift.weight)) {
+      continue;
+    }
+
+    const best = bestByExercise.get(key);
+    const isNewRecord =
+      !best ||
+      lift.weight > best.weight ||
+      (lift.weight === best.weight && lift.recordedAt > best.recordedAt);
+
+    if (isNewRecord) {
+      bestByExercise.set(key, { weight: lift.weight, recordedAt: lift.recordedAt });
+      records.push(startOfDay(new Date(lift.recordedAt)));
+    }
+  }
+
+  return records;
+}
 
 export default function Dashboard() {
   const [tasks, setTasks] = useState([]);
+  const [lifts, setLifts] = useState([]);
+  const [liftsError, setLiftsError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [newTask, setNewTask] = useState({ title: "", description: "" });
-  const [isAddingTask, setIsAddingTask] = useState(false);
-  const [editingTask, setEditingTask] = useState(null);
   const router = useRouter();
 
   useEffect(() => {
-    fetchTasks();
+    const load = async () => {
+      setLoading(true);
+      await Promise.allSettled([fetchTasks(), fetchLifts()]);
+      setLoading(false);
+    };
+
+    load();
   }, []);
 
   const fetchTasks = async () => {
@@ -22,88 +161,203 @@ export default function Dashboard() {
       });
       if (response.ok) {
         const data = await response.json();
-        setTasks(data);
+        setTasks(data.map(normaliseTask));
       } else {
         console.error("Failed to fetch tasks");
       }
     } catch (error) {
       console.error("Error fetching tasks:", error);
-    } finally {
-      setLoading(false);
     }
   };
 
-  const handleAddTask = async (e) => {
-    e.preventDefault();
-    if (!newTask.title.trim()) return;
-
-    setIsAddingTask(true);
-
+  const fetchLifts = async () => {
     try {
-      const response = await fetch("/api/tasks", {
+      const response = await fetch("/api/lifts", {
         credentials: "include",
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(newTask),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to fetch lifts");
+      }
+      const data = await response.json();
+      setLifts(Array.isArray(data) ? data.map(normaliseLift) : []);
+      setLiftsError("");
+    } catch (error) {
+      console.error("Error fetching lifts:", error);
+      setLiftsError("Unable to load lifts. Strength analytics may be stale.");
+    }
+  };
+
+  const analytics = useMemo(() => {
+    const counts = { total: 0, completed: 0, pending: 0, failed: 0 };
+    const byStatus = {
+      completed: [],
+      pending: [],
+      failed: [],
+    };
+    let latestActivity = null;
+
+    for (const task of tasks) {
+      const status = task.status ?? (task.completed ? "completed" : "pending");
+      counts.total += 1;
+      counts[status] = (counts[status] ?? 0) + 1;
+      if (byStatus[status]) {
+        byStatus[status].push(task);
+      }
+      const timestamp = getTaskTimestamp(task);
+      if (timestamp && (!latestActivity || timestamp > latestActivity.when)) {
+        latestActivity = { task, when: timestamp };
+      }
+    }
+
+    const sortByRecent = (list) =>
+      [...list].sort((a, b) => {
+        const aDate = getTaskTimestamp(a)?.getTime() ?? 0;
+        const bDate = getTaskTimestamp(b)?.getTime() ?? 0;
+        return bDate - aDate;
       });
 
-      if (response.ok) {
-        const task = await response.json();
-        setTasks((prev) => [task, ...prev]);
-        setNewTask({ title: "", description: "" });
-      }
-    } catch (error) {
-      console.error("Error adding task:", error);
-    } finally {
-      setIsAddingTask(false);
-    }
-  };
+    const completedRecent = sortByRecent(byStatus.completed).slice(0, 3);
+    const pendingTop = sortByRecent(byStatus.pending).slice(0, 5);
+    const successRate = counts.total === 0 ? 0 : Math.round((counts.completed / counts.total) * 100);
 
-  const handleUpdateTask = async (taskId, updates) => {
-    try {
-      const response = await fetch(`/api/tasks/${taskId}`, {
-        credentials: "include",
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updates),
+    return {
+      counts,
+      byStatus,
+      completedRecent,
+      pendingTop,
+      successRate,
+      latestActivity,
+    };
+  }, [tasks]);
+
+  const strengthInsights = useMemo(() => {
+    const emptyBigFour = BIG_FOUR_EXERCISES.reduce((acc, exercise) => {
+      acc[exercise.id] = null;
+      return acc;
+    }, {});
+
+    if (!lifts || lifts.length === 0) {
+      return {
+        total: 0,
+        recent: [],
+        unique: 0,
+        heaviest: null,
+        bigFour: emptyBigFour,
+      };
+    }
+
+    const uniqueSet = new Set();
+    const bigFour = { ...emptyBigFour };
+    let heaviest = null;
+
+    for (const lift of lifts) {
+      const uniqueKey = lift.exerciseId || lift.exerciseLabel?.toLowerCase() || lift.exercise?.toLowerCase() || "";
+      if (uniqueKey) {
+        uniqueSet.add(uniqueKey);
+      }
+
+      if (
+        !heaviest ||
+        lift.weight > heaviest.weight ||
+        (lift.weight === heaviest.weight && lift.recordedAt > heaviest.recordedAt)
+      ) {
+        heaviest = lift;
+      }
+
+      if (lift.exerciseId && Object.prototype.hasOwnProperty.call(bigFour, lift.exerciseId)) {
+        const current = bigFour[lift.exerciseId];
+        if (
+          !current ||
+          lift.weight > current.weight ||
+          (lift.weight === current.weight && lift.recordedAt > current.recordedAt)
+        ) {
+          bigFour[lift.exerciseId] = lift;
+        }
+      }
+    }
+
+    return {
+      total: lifts.length,
+      recent: lifts.slice(0, 3),
+      unique: uniqueSet.size,
+      heaviest,
+      bigFour,
+    };
+  }, [lifts]);
+
+  const contributionMetrics = useMemo(() => {
+    const today = startOfDay(new Date());
+    const isoDay = getIsoDay(today);
+    const endDate = shiftDate(today, 6 - isoDay);
+    const totalDays = WEEKS_TO_SHOW * 7;
+    const startDate = shiftDate(endDate, -(totalDays - 1));
+
+    const windowStartTs = startDate.getTime();
+    const windowEndTs = endDate.getTime();
+
+    const counts = new Map();
+    let taskEvents = 0;
+    let prEvents = 0;
+
+    const bump = (iso, type) => {
+      const existing = counts.get(iso) ?? { count: 0, tasks: 0, prs: 0 };
+      const next = {
+        count: existing.count + 1,
+        tasks: existing.tasks + (type === "task" ? 1 : 0),
+        prs: existing.prs + (type === "pr" ? 1 : 0),
+      };
+      counts.set(iso, next);
+    };
+
+    for (const date of tasks.map(getTaskCompletionDate).filter(Boolean)) {
+      const ts = date.getTime();
+      if (ts < windowStartTs || ts > windowEndTs) {
+        continue;
+      }
+      bump(toISODate(date), "task");
+      taskEvents += 1;
+    }
+
+    for (const date of getPersonalRecordDates(lifts)) {
+      const ts = date.getTime();
+      if (ts < windowStartTs || ts > windowEndTs) {
+        continue;
+      }
+      bump(toISODate(date), "pr");
+      prEvents += 1;
+    }
+
+    const days = [];
+    for (let cursor = new Date(startDate); cursor.getTime() <= windowEndTs; cursor = shiftDate(cursor, 1)) {
+      const iso = toISODate(cursor);
+      const entry = counts.get(iso) ?? { count: 0, tasks: 0, prs: 0 };
+      days.push({
+        date: iso,
+        count: entry.count,
+        taskCount: entry.tasks,
+        prCount: entry.prs,
+        weekday: getIsoDay(cursor),
       });
-
-      if (response.ok) {
-        const updatedTask = await response.json();
-        setTasks((prev) =>
-          prev.map((task) => (task._id === taskId ? updatedTask : task))
-        );
-        setEditingTask(null);
-      }
-    } catch (error) {
-      console.error("Error updating task:", error);
     }
-  };
 
-  const handleDeleteTask = async (taskId) => {
-    if (!confirm("Are you sure you want to delete this task?")) return;
+    return {
+      days,
+      totals: {
+        total: taskEvents + prEvents,
+        tasks: taskEvents,
+        prs: prEvents,
+      },
+      range: {
+        start: toISODate(startDate),
+        end: toISODate(endDate),
+      },
+    };
+  }, [tasks, lifts]);
 
-    try {
-      const response = await fetch(`/api/tasks/${taskId}`, {
-        credentials: "include",
-        method: "DELETE",
-      });
+  const contributionDays = contributionMetrics.days;
+  const contributionTotals = contributionMetrics.totals;
+  const contributionRange = contributionMetrics.range;
 
-      if (response.ok) {
-        setTasks((prev) => prev.filter((task) => task._id !== taskId));
-      }
-    } catch (error) {
-      console.error("Error deleting task:", error);
-    }
-  };
-
-  const handleToggleComplete = async (taskId, completed) => {
-    await handleUpdateTask(taskId, { completed: !completed });
-  };
 
   const handleLogout = async () => {
     try {
@@ -114,15 +368,12 @@ export default function Dashboard() {
     }
   };
 
-  const completedTasks = tasks.filter((task) => task.completed);
-  const pendingTasks = tasks.filter((task) => !task.completed);
-
   if (loading) {
     return (
       <div className="min-h-screen bg-[var(--background-muted)] flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--accent)] mx-auto"></div>
-          <p className="mt-4 text-[var(--text-secondary)]">Loading your tasks...</p>
+          <p className="mt-4 text-[var(--text-secondary)]">Crunching the latest performance metrics...</p>
         </div>
       </div>
     );
@@ -130,304 +381,460 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-[var(--background-muted)]">
-      <div className="bg-[var(--surface)] shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <h1 className="text-2xl font-bold text-[var(--text-primary)]">
-              Daily Task Tracker
-            </h1>
-            <button
-              onClick={handleLogout}
-              className="bg-[var(--danger)] text-[var(--danger-contrast)] px-4 py-2 rounded-lg hover:bg-[var(--danger-hover)] transition duration-200"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Add Task Form */}
-        <div
-          className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-8 mb-8"
-          style={{ boxShadow: "var(--card-shadow)" }}
-        >
-          <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4">
-            Add New Task
-          </h2>
-          <form onSubmit={handleAddTask} className="space-y-4">
-            <div>
-              <input
-                type="text"
-                placeholder="Task title..."
-                value={newTask.title}
-                onChange={(e) =>
-                  setNewTask((prev) => ({ ...prev, title: e.target.value }))
-                }
-                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-                required
-              />
-            </div>
-            <div>
-              <textarea
-                placeholder="Task description (optional)..."
-                value={newTask.description}
-                onChange={(e) =>
-                  setNewTask((prev) => ({
-                    ...prev,
-                    description: e.target.value,
-                  }))
-                }
-                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] h-20 resize-none"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={isAddingTask}
-              className="bg-[var(--accent)] text-[var(--accent-contrast)] px-6 py-2 rounded-lg hover:bg-[var(--accent-hover)] transition duration-200 disabled:opacity-50"
-            >
-              {isAddingTask ? "Adding..." : "Add Task"}
-            </button>
-          </form>
-        </div>
-
-        {/* Task Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div
-            className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-6"
-              style={{ boxShadow: "var(--card-shadow)" }}
-            >
-            <h3 className="text-lg font-semibold text-[var(--text-primary)]">Total Tasks</h3>
-            <p className="text-3xl font-bold text-[var(--accent)]">{tasks.length}</p>
-          </div>
-          <div
-            className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-6"
-              style={{ boxShadow: "var(--card-shadow)" }}
-            >
-            <h3 className="text-lg font-semibold text-[var(--text-primary)]">Completed</h3>
-            <p className="text-3xl font-bold text-[var(--success-text)]">
-              {completedTasks.length}
-            </p>
-          </div>
-          <div
-            className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-6"
-              style={{ boxShadow: "var(--card-shadow)" }}
-            >
-            <h3 className="text-lg font-semibold text-[var(--text-primary)]">Pending</h3>
-            <p className="text-3xl font-bold text-[var(--warning-text)]">
-              {pendingTasks.length}
-            </p>
-          </div>
-        </div>
-
-        {/* Tasks List */}
-        <div className="space-y-6">
-          {/* Pending Tasks */}
-          {pendingTasks.length > 0 && (
-            <div
-              className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-6"
-              style={{ boxShadow: "var(--card-shadow)" }}
-            >
-              <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-4">
-                Pending Tasks
-              </h2>
-              <div className="space-y-4">
-                {pendingTasks.map((task) => (
-                  <TaskItem
-                    key={task._id}
-                    task={task}
-                    editingTask={editingTask}
-                    setEditingTask={setEditingTask}
-                    onToggleComplete={handleToggleComplete}
-                    onUpdate={handleUpdateTask}
-                    onDelete={handleDeleteTask}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Completed Tasks */}
-          {completedTasks.length > 0 && (
-            <div
-              className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-6"
-              style={{ boxShadow: "var(--card-shadow)" }}
-            >
-              <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-4">
-                Completed Tasks
-              </h2>
-              <div className="space-y-4">
-                {completedTasks.map((task) => (
-                  <TaskItem
-                    key={task._id}
-                    task={task}
-                    editingTask={editingTask}
-                    setEditingTask={setEditingTask}
-                    onToggleComplete={handleToggleComplete}
-                    onUpdate={handleUpdateTask}
-                    onDelete={handleDeleteTask}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {tasks.length === 0 && (
-            <div
-              className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-12 text-center"
-              style={{ boxShadow: "var(--card-shadow)" }}
-            >
-              <p className="text-[var(--text-muted)] text-lg">
-                No tasks yet. Create your first task above!
+      <NavigationBar onLogout={handleLogout} />
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
+        <header className="bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-8" style={{ boxShadow: "var(--card-shadow)" }}>
+          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-3">
+              <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+                Home - Daily Intelligence
+              </span>
+              <h1 className="text-3xl font-bold text-[var(--text-primary)]">Operations Overview</h1>
+              <p className="text-[var(--text-secondary)] max-w-xl">
+                Review completion velocity, track momentum, and scan for blockers before diving back into the execution lanes.
               </p>
             </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TaskItem({
-  task,
-  editingTask,
-  setEditingTask,
-  onToggleComplete,
-  onUpdate,
-  onDelete,
-}) {
-  const [editForm, setEditForm] = useState({
-    title: task.title,
-    description: task.description || "",
-  });
-
-  const handleEdit = () => {
-    setEditingTask(task._id);
-    setEditForm({
-      title: task.title,
-      description: task.description || "",
-    });
-  };
-
-  const handleSaveEdit = async (e) => {
-    e.preventDefault();
-    if (!editForm.title.trim()) return;
-
-    await onUpdate(task._id, editForm);
-  };
-
-  const handleCancelEdit = () => {
-    setEditingTask(null);
-    setEditForm({
-      title: task.title,
-      description: task.description || "",
-    });
-  };
-
-  const isEditing = editingTask === task._id;
-
-  return (
-    <div
-      className={`border rounded-2xl p-5 ${
-        task.completed
-          ? "bg-[var(--success-bg)] border-[var(--success-border)]"
-          : "bg-[var(--surface)] border-[var(--border)]"
-      }`}
-      style={{ boxShadow: "var(--card-shadow)" }}
-    >
-      {isEditing ? (
-        <form onSubmit={handleSaveEdit} className="space-y-3">
-          <input
-            type="text"
-            value={editForm.title}
-            onChange={(e) =>
-              setEditForm((prev) => ({ ...prev, title: e.target.value }))
-            }
-            className="w-full px-3 py-2 border border-[var(--border)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-            required
-          />
-          <textarea
-            value={editForm.description}
-            onChange={(e) =>
-              setEditForm((prev) => ({ ...prev, description: e.target.value }))
-            }
-            className="w-full px-3 py-2 border border-[var(--border)] rounded focus:outline-none focus:ring-2 focus:ring-[var(--accent)] h-20 resize-none"
-            placeholder="Task description..."
-          />
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              className="bg-[var(--success-accent)] text-[var(--success-contrast)] px-3 py-1 rounded-lg hover:bg-[var(--success-accent-hover)] transition duration-200"
-            >
-              Save
-            </button>
-            <button
-              type="button"
-              onClick={handleCancelEdit}
-              className="border border-[var(--border)] px-3 py-1 rounded-lg text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition duration-200"
-            >
-              Cancel
-            </button>
+            <div className="flex flex-col items-start gap-2 text-sm text-[var(--text-secondary)] md:items-end">
+              <span className="text-4xl font-bold text-[var(--text-primary)]">{analytics.successRate}%</span>
+              <span className="uppercase tracking-wide">Current completion rate</span>
+              {analytics.latestActivity && (
+                <span className="text-xs text-[var(--text-muted)]">
+                  Last update - {formatDate(analytics.latestActivity.when)}
+                </span>
+              )}
+            </div>
           </div>
-        </form>
-      ) : (
-        <div className="flex items-start gap-3">
-          <input
-            type="checkbox"
-            checked={task.completed}
-            onChange={() => onToggleComplete(task._id, task.completed)}
-            className="mt-1 h-5 w-5 text-[var(--accent)] rounded border-[var(--border)] focus:ring-[var(--accent)]"
-          />
-          <div className="flex-1 min-w-0">
-            <h3
-              className={`font-medium ${
-                task.completed ? "line-through text-[var(--text-muted)]" : "text-[var(--text-primary)]"
-              }`}
-            >
-              {task.title}
-            </h3>
-            {task.description && (
-              <p
-                className={`mt-1 text-sm ${
-                  task.completed
-                    ? "line-through text-[var(--text-extra-muted)]"
-                    : "text-[var(--text-secondary)]"
-                }`}
-              >
-                {task.description}
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <Link href="/focus" className="btn-primary w-full sm:w-auto">
+              Jump to Focus board
+            </Link>
+            <Link href="/strength" className="btn-secondary w-full sm:w-auto">
+              Review lift analytics
+            </Link>
+          </div>
+        </header>
+
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <SummaryCard title="Total tasks" value={analytics.counts.total} highlight="var(--accent)" />
+          <SummaryCard title="Completed" value={analytics.counts.completed} highlight="var(--success-accent)" />
+          <SummaryCard title="Pending" value={analytics.counts.pending} highlight="var(--warning-text)" />
+          <SummaryCard title="Failed" value={analytics.counts.failed} highlight="var(--danger)" />
+        </section>
+
+        <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2 space-y-6">
+            <AnalyticsCard title="Recent wins">
+              <TaskList tasks={analytics.completedRecent} emptyLabel="Knock out tasks in Focus to surface victories here." />
+            </AnalyticsCard>
+            <AnalyticsCard title="Active queue">
+              <TaskList tasks={analytics.pendingTop} emptyLabel="No items on deck. Queue work inside Focus to plan the next strike." />
+            </AnalyticsCard>
+          </div>
+          <div className="space-y-6">
+            <AnalyticsCard title="Big Four PRs">
+              {liftsError ? (
+                <p className="text-sm text-[var(--warning-text)]">{liftsError}</p>
+              ) : (
+                <ul className="space-y-3 text-sm text-[var(--text-secondary)]">
+                  {BIG_FOUR_EXERCISES.map((exercise) => {
+                    const best = strengthInsights.bigFour?.[exercise.id];
+                    return (
+                      <li key={exercise.id} className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-semibold text-[var(--text-primary)]">{exercise.shortLabel || exercise.label}</span>
+                          <span className="text-xs text-[var(--text-muted)]">
+                            {best
+                              ? `${best.weight} kg x ${best.reps} - ${formatDate(best.date || best.recordedAt)}`
+                              : "No record logged yet."}
+                          </span>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </AnalyticsCard>
+          </div>
+        </section>
+
+        <section className="bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-8" style={{ boxShadow: "var(--card-shadow)" }}>
+          <h2 className="text-xl font-semibold text-[var(--text-primary)]">Momentum heatmap</h2>
+          <p className="mt-2 text-sm text-[var(--text-secondary)]">
+            Track daily task completions and personal record breakthroughs to keep the momentum visible.
+          </p>
+          <div className="mt-6 space-y-4">
+            <ContributionHeatmap data={contributionDays} loading={loading} />
+            <div className="text-xs text-[var(--text-muted)] flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <span>
+                Completions: {contributionTotals.tasks} | New PRs: {contributionTotals.prs}
+              </span>
+              <span>
+                Window: {formatContributionRange(contributionRange)}
+              </span>
+            </div>
+            {!loading && contributionTotals.total === 0 && (
+              <p className="text-xs text-[var(--text-secondary)]">
+                Close tasks or hit a personal record to light up this grid.
               </p>
             )}
-            <p className="mt-2 text-xs text-[var(--text-extra-muted)]">
-              Created: {new Date(task.createdAt).toLocaleDateString()}
-            </p>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={handleEdit}
-              className="text-[var(--accent)] hover:text-[var(--accent-hover)] text-sm"
+        </section>
+      </main>
+    </div>
+  );
+}
+
+function SummaryCard({ title, value, highlight }) {
+  return (
+    <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-6" style={{ boxShadow: "var(--card-shadow)" }}>
+      <p className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wide">{title}</p>
+      <p className="mt-2 text-4xl font-bold" style={{ color: highlight }}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function AnalyticsCard({ title, children }) {
+  return (
+    <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6" style={{ boxShadow: "var(--card-shadow)" }}>
+      <div className="flex items-baseline justify-between">
+        <h3 className="text-lg font-semibold text-[var(--text-primary)]">{title}</h3>
+      </div>
+      <div className="mt-4">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function TaskList({ tasks = [], emptyLabel, compact }) {
+  if (!tasks || tasks.length === 0) {
+    return <p className="text-sm text-[var(--text-secondary)]">{emptyLabel}</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {tasks.map((task) => {
+        const status = task.status ?? (task.completed ? "completed" : "pending");
+        return (
+          <div key={task._id} className={`rounded-2xl border p-4 ${compact ? "bg-[var(--surface)]" : "bg-[var(--surface-muted)]"}`}>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-[var(--text-primary)]">{task.title}</p>
+                {task.description && !compact && (
+                  <p className="text-sm text-[var(--text-secondary)]">{task.description}</p>
+                )}
+                <p className="text-xs text-[var(--text-muted)]">
+                  Updated {formatDate(getTaskTimestamp(task)) || "recently"}
+                </p>
+              </div>
+              <span className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${STATUS_BADGE_CLASSES[status]}`}>
+                {STATUS_LABELS[status]}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ContributionHeatmap({ data = [], loading }) {
+  const [hoveredDay, setHoveredDay] = useState(null);
+
+  if (loading) {
+    return (
+      <div className="flex h-28 items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent)]"></div>
+      </div>
+    );
+  }
+
+  const days = Array.isArray(data) ? data : [];
+  const windowSize = WEEKS_TO_SHOW * 7;
+
+  if (!days || days.length === 0) {
+    return <p className="text-sm text-[var(--text-secondary)]">No milestones recorded in this window yet.</p>;
+  }
+
+  const byDate = new Map();
+  for (const entry of days) {
+    if (!entry || !entry.date) continue;
+    const count = Number(entry.count ?? 0);
+    const taskCount = Number(entry.taskCount ?? 0);
+    const prCount = Number(entry.prCount ?? 0);
+    byDate.set(entry.date, {
+      date: entry.date,
+      count: Number.isFinite(count) ? count : 0,
+      taskCount: Number.isFinite(taskCount) ? taskCount : 0,
+      prCount: Number.isFinite(prCount) ? prCount : 0,
+    });
+  }
+
+  const lastEntryIso = days[days.length - 1]?.date;
+  let endDate = lastEntryIso ? new Date(lastEntryIso) : new Date();
+  if (Number.isNaN(endDate.getTime())) {
+    endDate = new Date();
+  }
+  endDate = startOfDay(endDate);
+
+  const orderedDays = [];
+  for (let offset = windowSize - 1; offset >= 0; offset -= 1) {
+    const currentDate = shiftDate(endDate, -offset);
+    const iso = toISODate(currentDate);
+    const entry = byDate.get(iso);
+    orderedDays.push({
+      date: iso,
+      count: entry?.count ?? 0,
+      taskCount: entry?.taskCount ?? 0,
+      prCount: entry?.prCount ?? 0,
+    });
+  }
+
+  const weeks = [];
+  for (let index = 0; index < orderedDays.length; index += 7) {
+    weeks.push(orderedDays.slice(index, index + 7));
+  }
+
+  const monthLabels = [];
+  let lastMonthKey = "";
+  weeks.forEach((week) => {
+    const firstEntry = week.find((item) => item?.date);
+    if (!firstEntry?.date) {
+      monthLabels.push("");
+      return;
+    }
+    const firstDate = new Date(firstEntry.date);
+    if (Number.isNaN(firstDate.getTime())) {
+      monthLabels.push("");
+      return;
+    }
+    const monthKey = `${firstDate.getFullYear()}-${firstDate.getMonth()}`;
+    const withinFirstWeek = firstDate.getDate() <= 7;
+    if (monthKey !== lastMonthKey && withinFirstWeek) {
+      monthLabels.push(firstDate.toLocaleDateString(undefined, { month: "short" }));
+      lastMonthKey = monthKey;
+    } else {
+      monthLabels.push("");
+    }
+  });
+
+  const tileSize = 11;
+  const gap = 3;
+  const columnWidth = `${tileSize}px`;
+  const labelWidth = "28px";
+  const gapValue = `${gap}px`;
+
+  const headerGridStyle = {
+    gridTemplateColumns: `${labelWidth} repeat(${weeks.length}, ${columnWidth})`,
+    columnGap: gapValue,
+    justifyContent: "start",
+  };
+
+  const bodyGridStyle = {
+    gridTemplateColumns: `${labelWidth} repeat(${weeks.length}, ${columnWidth})`,
+    columnGap: gapValue,
+    rowGap: gapValue,
+    justifyContent: "start",
+    justifyItems: "start",
+  };
+
+  const weekColumnStyle = {
+    gridTemplateRows: `repeat(7, ${columnWidth})`,
+    rowGap: gapValue,
+  };
+
+  const tileBaseStyle = {
+    width: columnWidth,
+    height: columnWidth,
+  };
+
+  const todayIso = toISODate(new Date());
+  const hoverSummary = hoveredDay ? formatContributionSummary(hoveredDay) : "Hover a square to inspect the day.";
+
+  return (
+    <div className="space-y-3">
+      <div className="w-full overflow-x-auto">
+        <div className="space-y-3 min-w-max">
+          <div
+            className="grid items-center text-[10px] uppercase tracking-wide text-[var(--text-muted)]"
+            style={headerGridStyle}
+          >
+            <span style={{ width: labelWidth }} />
+            {weeks.map((_, index) => (
+              <span key={`month-${index}`} className="text-center">
+                {monthLabels[index]}
+              </span>
+            ))}
+          </div>
+          <div className="grid" style={bodyGridStyle}>
+            <div
+              className="grid text-[10px] uppercase tracking-wide text-[var(--text-muted)]"
+              style={{ ...weekColumnStyle, width: labelWidth }}
             >
-              Edit
-            </button>
-            <button
-              onClick={() => onDelete(task._id)}
-              className="text-[var(--danger)] hover:text-[var(--danger-hover)] text-sm"
-            >
-              Delete
-            </button>
+              {COMPACT_WEEKDAY_LABELS.map((label, index) => (
+                <span key={`weekday-${index}`} className={label ? "" : "invisible"}>
+                  {label || "-"}
+                </span>
+              ))}
+            </div>
+            {weeks.map((week, weekIndex) => (
+              <div key={`week-${weekIndex}`} className="grid" style={weekColumnStyle}>
+                {week.map((day, dayIndex) => {
+                  const count = Number(day?.count ?? 0);
+                  const level = getContributionLevel(count);
+                  const style = getContributionStyle(level);
+                  const hasActivity = count > 0;
+                  const backgroundColor = hasActivity ? style.backgroundColor : "var(--surface)";
+                  const borderColor = hasActivity ? style.borderColor : "var(--border)";
+                  const opacity = hasActivity ? style.opacity ?? 1 : 1;
+                  const tooltip = formatContributionLabel(day);
+                  const isToday = day?.date === todayIso;
+
+                  return (
+                    <div
+                      key={day?.date ?? `cell-${weekIndex}-${dayIndex}`}
+                      className="relative focus:outline-none"
+                      style={tileBaseStyle}
+                      onMouseEnter={() => setHoveredDay({ ...day })}
+                      onFocus={() => setHoveredDay({ ...day })}
+                      onMouseLeave={() => setHoveredDay(null)}
+                      onBlur={() => setHoveredDay(null)}
+                      tabIndex={0}
+                    >
+                      <div
+                        className="absolute inset-0 rounded-[3px] border transition-colors duration-200"
+                        style={{ backgroundColor, borderColor, opacity }}
+                        title={tooltip}
+                        aria-label={tooltip}
+                      />
+                      {isToday && (
+                        <span className="pointer-events-none absolute inset-[-2px] rounded-[5px] ring-1 ring-[var(--accent)]" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </div>
-      )}
+      </div>
+      <div className="flex flex-col gap-2 text-xs text-[var(--text-muted)] sm:flex-row sm:items-center sm:justify-between">
+        <span className="text-[var(--text-secondary)]">{hoverSummary}</span>
+        <ContributionLegend />
+      </div>
     </div>
   );
 }
 
 
+function formatContributionLabel(day) {
+  if (!day?.date) {
+    return "No milestones recorded.";
+  }
 
+  const date = new Date(day.date);
+  const formattedDate = Number.isNaN(date.getTime())
+    ? day.date
+    : date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 
+  const taskCount = Number(day?.taskCount ?? 0);
+  const prCount = Number(day?.prCount ?? 0);
+  const segments = [];
 
+  if (taskCount > 0) {
+    segments.push(`${taskCount} ${taskCount === 1 ? "task completion" : "task completions"}`);
+  }
 
+  if (prCount > 0) {
+    segments.push(`${prCount} ${prCount === 1 ? "new PR" : "new PRs"}`);
+  }
 
+  if (segments.length === 0) {
+    segments.push("No milestones recorded");
+  }
 
+  return `${segments.join(" | ")} on ${formattedDate}`;
+}
+
+function formatContributionSummary(day) {
+  if (!day?.date) {
+    return "No milestones recorded.";
+  }
+
+  const date = new Date(day.date);
+  const formattedDate = Number.isNaN(date.getTime())
+    ? day.date
+    : date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+
+  const taskCount = Number(day?.taskCount ?? 0);
+  const prCount = Number(day?.prCount ?? 0);
+  const parts = [];
+
+  if (taskCount > 0) {
+    parts.push(`${taskCount} ${taskCount === 1 ? "task completion" : "task completions"}`);
+  }
+
+  if (prCount > 0) {
+    parts.push(`${prCount} ${prCount === 1 ? "PR" : "PRs"}`);
+  }
+
+  if (parts.length === 0) {
+    parts.push("No milestones recorded");
+  }
+
+  return `${formattedDate} - ${parts.join(" / ")}`;
+}
+
+function formatContributionRange(range) {
+  if (!range?.start || !range?.end) {
+    return "";
+  }
+
+  const start = new Date(range.start);
+  const end = new Date(range.end);
+  const options = { month: "short", day: "numeric" };
+  const startLabel = Number.isNaN(start.getTime()) ? range.start : start.toLocaleDateString(undefined, options);
+  const endLabel = Number.isNaN(end.getTime()) ? range.end : end.toLocaleDateString(undefined, options);
+
+  return `${startLabel} - ${endLabel}`;
+}
+
+function getContributionLevel(count) {
+  if (count <= 0) return 0;
+  if (count === 1) return 1;
+  if (count <= 3) return 2;
+  if (count <= 6) return 3;
+  return 4;
+}
+
+function getContributionStyle(level) {
+  const safeLevel = Number.isFinite(level) ? Math.trunc(level) : 0;
+  const index = Math.min(
+    CONTRIBUTION_LEVEL_STYLES.length - 1,
+    Math.max(0, safeLevel)
+  );
+  return CONTRIBUTION_LEVEL_STYLES[index];
+}
+
+function ContributionLegend() {
+  const levels = [0, 1, 2, 3, 4];
+
+  return (
+    <div className="flex items-center justify-end gap-2 text-xs text-[var(--text-muted)]">
+      <span>Less</span>
+      {levels.map((level) => (
+        <span
+          key={level}
+          className="h-3 w-3 rounded-[3px] border"
+          style={getContributionStyle(level)}
+        />
+      ))}
+      <span>More</span>
+    </div>
+  );
+}
 
 
 

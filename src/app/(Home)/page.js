@@ -31,7 +31,7 @@ export default function Home() {
             Stay ruthless with your focus
           </h1>
           <p className="mx-auto max-w-2xl text-lg text-[var(--text-secondary)]">
-            Plan the day, track execution, and ship results. Switch between luminous light mode and a stealth dark theme tailored in black & red.
+            Plan the day, track execution, and ship results.
           </p>
         </div>
 
@@ -50,7 +50,7 @@ export default function Home() {
         <div className="grid w-full gap-6 md:grid-cols-3">
           <div className="theme-card p-6 text-left" style={{ boxShadow: "var(--card-shadow)" }}>
             <p className="text-sm font-semibold uppercase tracking-wide text-[var(--accent)]">
-              Daily pulse
+              Daily cadence
             </p>
             <h3 className="mt-3 text-xl font-semibold text-[var(--text-primary)]">
               Command central in one dashboard
@@ -61,24 +61,24 @@ export default function Home() {
           </div>
           <div className="theme-card p-6 text-left" style={{ boxShadow: "var(--card-shadow)" }}>
             <p className="text-sm font-semibold uppercase tracking-wide text-[var(--accent)]">
-              Mood aware
+              Strength Logging
             </p>
             <h3 className="mt-3 text-xl font-semibold text-[var(--text-primary)]">
-              Light or dark, you drive the vibe
+              Track your lifts for hypertrophy
             </h3>
             <p className="mt-2 text-[var(--text-secondary)]">
-              Switch seamlessly between airy whites and the black & red fighter mode to match the energy of your grind.
+              Log every bench press, squat, and deadlift. Monitor progressive overload, spot plateaus, and keep your gains on a steady climb.
             </p>
           </div>
           <div className="theme-card p-6 text-left" style={{ boxShadow: "var(--card-shadow)" }}>
             <p className="text-sm font-semibold uppercase tracking-wide text-[var(--accent)]">
-              Celebration built-in
+              Streaks & velocity
             </p>
             <h3 className="mt-3 text-xl font-semibold text-[var(--text-primary)]">
               Track velocity, celebrate wins
             </h3>
             <p className="mt-2 text-[var(--text-secondary)]">
-              Visualise completed streaks, spot blockers fast, and keep elevating your standards.
+              Visualise streaks, surface blockers instantly, and track momentum with stats that reset at dawn.
             </p>
           </div>
         </div>

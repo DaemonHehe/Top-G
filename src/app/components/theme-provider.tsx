@@ -29,11 +29,10 @@ function getPreferredTheme(): Theme {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(() => getPreferredTheme());
+  const [theme, setTheme] = useState<Theme>('light');
 
   useEffect(() => {
-    const preferred = getPreferredTheme();
-    setTheme(preferred);
+    setTheme(getPreferredTheme());
   }, []);
 
   useEffect(() => {
