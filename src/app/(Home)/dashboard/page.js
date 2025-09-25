@@ -147,12 +147,42 @@ export default function Dashboard() {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      await Promise.allSettled([fetchTasks(), fetchLifts()]);
+      await Promise.allSettled([syncTimezone(), fetchTasks(), fetchLifts()]);
       setLoading(false);
     };
 
     load();
   }, []);
+
+  const getBrowserTimeZone = () => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+    } catch {
+      return "";
+    }
+  };
+
+  const syncTimezone = async () => {
+    try {
+      const tz = getBrowserTimeZone();
+      if (!tz) return;
+      const res = await fetch("/api/users", { credentials: "include" });
+      if (!res.ok) return;
+      const payload = await res.json();
+      const user = payload?.user;
+      if (!user?.id) return;
+      if (user.timezone === tz) return;
+      await fetch(`/api/users/${user.id}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ timezone: tz }),
+      });
+    } catch (e) {
+      // Non-fatal; ignore sync failures
+      console.warn("Timezone sync skipped:", e);
+    }
+  };
 
   const fetchTasks = async () => {
     try {
@@ -216,25 +246,38 @@ export default function Dashboard() {
         return bDate - aDate;
       });
 
+    const sortBySpecial = (list) =>
+      [...list].sort((a, b) => {
+        const aDue = typeof a?.dueDate === "string" && a.dueDate ? a.dueDate : null;
+        const bDue = typeof b?.dueDate === "string" && b.dueDate ? b.dueDate : null;
+        if (aDue && bDue) return aDue.localeCompare(bDue);
+        if (aDue && !bDue) return -1;
+        if (!aDue && bDue) return 1;
+        // fallback to most recently updated
+        const aDate = getTaskTimestamp(a)?.getTime() ?? 0;
+        const bDate = getTaskTimestamp(b)?.getTime() ?? 0;
+        return bDate - aDate;
+      });
+
     const completedRecent = sortByRecent(byStatus.completed).slice(0, 3);
     const pendingTop = sortByRecent(byStatus.pending).slice(0, 5);
+    const specialPending = sortBySpecial(
+      tasks.filter(
+        (t) => t.type === "special" && ((t.status ?? (t.completed ? "completed" : "pending")) === "pending")
+      )
+    ).slice(0, 5);
     const successRate = counts.total === 0 ? 0 : Math.round((counts.completed / counts.total) * 100);
 
-    return {
-      counts,
-      byStatus,
-      completedRecent,
-      pendingTop,
-      successRate,
-      latestActivity,
-    };
+    return { counts, byStatus, latestActivity, completedRecent, pendingTop, specialPending, successRate };
   }, [tasks]);
 
   const strengthInsights = useMemo(() => {
-    const emptyBigFour = BIG_FOUR_EXERCISES.reduce((acc, exercise) => {
-      acc[exercise.id] = null;
-      return acc;
-    }, {});
+    const emptyBigFour = {
+      squat_back: null,
+      deadlift: null,
+      bench_press_barbell: null,
+      overhead_press: null,
+    };
 
     if (!lifts || lifts.length === 0) {
       return {
@@ -382,20 +425,20 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-[var(--background-muted)]">
       <NavigationBar onLogout={handleLogout} />
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
-        <header className="bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-8" style={{ boxShadow: "var(--card-shadow)" }}>
-          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+      <main className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-8 sm:space-y-10">
+        <header className="bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-6 sm:p-8" style={{ boxShadow: "var(--card-shadow)" }}>
+          <div className="flex flex-col gap-4 sm:gap-6 md:flex-row md:items-center md:justify-between">
             <div className="space-y-3">
               <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
                 Home - Daily Intelligence
               </span>
-              <h1 className="text-3xl font-bold text-[var(--text-primary)]">Operations Overview</h1>
-              <p className="text-[var(--text-secondary)] max-w-xl">
+              <h1 className="text-2xl sm:text-3xl font-bold text-[var(--text-primary)]">Operations Overview</h1>
+              <p className="text-sm sm:text-base text-[var(--text-secondary)] max-w-xl">
                 Review completion velocity, track momentum, and scan for blockers before diving back into the execution lanes.
               </p>
             </div>
             <div className="flex flex-col items-start gap-2 text-sm text-[var(--text-secondary)] md:items-end">
-              <span className="text-4xl font-bold text-[var(--text-primary)]">{analytics.successRate}%</span>
+              <span className="text-3xl sm:text-4xl font-bold text-[var(--text-primary)]">{analytics.successRate}%</span>
               <span className="uppercase tracking-wide">Current completion rate</span>
               {analytics.latestActivity && (
                 <span className="text-xs text-[var(--text-muted)]">
@@ -421,16 +464,16 @@ export default function Dashboard() {
           <SummaryCard title="Failed" value={analytics.counts.failed} highlight="var(--danger)" />
         </section>
 
-        <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2 space-y-6">
-            <AnalyticsCard title="Recent wins">
-              <TaskList tasks={analytics.completedRecent} emptyLabel="Knock out tasks in Focus to surface victories here." />
+        <section className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+            <AnalyticsCard title="Special tasks">
+              <TaskList tasks={analytics.specialPending} emptyLabel="No special tasks scheduled." />
             </AnalyticsCard>
             <AnalyticsCard title="Active queue">
               <TaskList tasks={analytics.pendingTop} emptyLabel="No items on deck. Queue work inside Focus to plan the next strike." />
             </AnalyticsCard>
           </div>
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             <AnalyticsCard title="Big Four PRs">
               {liftsError ? (
                 <p className="text-sm text-[var(--warning-text)]">{liftsError}</p>
@@ -457,8 +500,8 @@ export default function Dashboard() {
           </div>
         </section>
 
-        <section className="bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-8" style={{ boxShadow: "var(--card-shadow)" }}>
-          <h2 className="text-xl font-semibold text-[var(--text-primary)]">Momentum heatmap</h2>
+        <section className="bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-6 sm:p-8" style={{ boxShadow: "var(--card-shadow)" }}>
+          <h2 className="text-lg sm:text-xl font-semibold text-[var(--text-primary)]">Momentum heatmap</h2>
           <p className="mt-2 text-sm text-[var(--text-secondary)]">
             Track daily task completions and personal record breakthroughs to keep the momentum visible.
           </p>
@@ -501,9 +544,7 @@ function AnalyticsCard({ title, children }) {
       <div className="flex items-baseline justify-between">
         <h3 className="text-lg font-semibold text-[var(--text-primary)]">{title}</h3>
       </div>
-      <div className="mt-4">
-        {children}
-      </div>
+      <div className="mt-4">{children}</div>
     </div>
   );
 }
@@ -522,16 +563,23 @@ function TaskList({ tasks = [], emptyLabel, compact }) {
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-1">
                 <p className="text-sm font-semibold text-[var(--text-primary)]">{task.title}</p>
-                {task.description && !compact && (
-                  <p className="text-sm text-[var(--text-secondary)]">{task.description}</p>
+                {(task.description || task.type === "special") && !compact && (
+                  <p className="text-sm text-[var(--text-secondary)]">
+                    {task.description}
+                    {task.type === "special" && task.dueDate && (
+                      <span className="ml-2 text-[var(--text-muted)]">Due: {task.dueDate}</span>
+                    )}
+                  </p>
                 )}
-                <p className="text-xs text-[var(--text-muted)]">
-                  Updated {formatDate(getTaskTimestamp(task)) || "recently"}
-                </p>
               </div>
-              <span className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${STATUS_BADGE_CLASSES[status]}`}>
-                {STATUS_LABELS[status]}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className={`inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${STATUS_BADGE_CLASSES[status]}`}>
+                  {STATUS_LABELS[status]}
+                </span>
+                <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 text-xs text-[var(--text-secondary)]">
+                  {task.type === "daily" ? "Daily" : "Special"}
+                </span>
+              </div>
             </div>
           </div>
         );

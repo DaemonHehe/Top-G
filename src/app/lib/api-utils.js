@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import clientPromise from "./mongodb";
 import { verifyToken } from "./auth";
@@ -46,6 +46,7 @@ export function sanitizeUser(user) {
     _id: user._id?.toString(),
     name: user.name,
     email: user.email,
+    timezone: user.timezone || null,
     createdAt:
       user.createdAt instanceof Date ? user.createdAt.toISOString() : user.createdAt,
     updatedAt:

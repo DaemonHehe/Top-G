@@ -75,6 +75,7 @@ export async function PUT(request, context) {
 
   const update = { updatedAt: new Date() };
   const allowedStatuses = new Set(["pending", "completed", "failed"]);
+  const allowedTypes = new Set(["daily", "special"]);
 
   if (body.title !== undefined) {
     const title = typeof body.title === "string" ? body.title.trim() : "";
@@ -105,6 +106,28 @@ export async function PUT(request, context) {
     update.completed = completed;
     if (update.status === undefined) {
       update.status = completed ? "completed" : "pending";
+    }
+  }
+
+  if (body.type !== undefined) {
+    const type = typeof body.type === "string" ? body.type.trim().toLowerCase() : "";
+    if (!allowedTypes.has(type)) {
+      return NextResponse.json({ message: "Invalid type" }, { status: 400 });
+    }
+    update.type = type;
+  }
+
+  if (body.dueDate !== undefined) {
+    // Accept empty string/null to clear for non-special tasks
+    if (body.dueDate === null || body.dueDate === "") {
+      update.dueDate = null;
+    } else if (typeof body.dueDate === "string") {
+      const due = body.dueDate.trim();
+      // Basic YYYY-MM-DD check
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) {
+        return NextResponse.json({ message: "Invalid dueDate format (expected YYYY-MM-DD)" }, { status: 400 });
+      }
+      update.dueDate = due;
     }
   }
 

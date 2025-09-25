@@ -36,7 +36,7 @@ const formatDate = (value) => {
 export default function Focus() {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [newTask, setNewTask] = useState({ title: "", description: "" });
+  const [newTask, setNewTask] = useState({ title: "", description: "", type: "daily", dueDate: "" });
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const router = useRouter();
@@ -71,19 +71,28 @@ export default function Focus() {
     setIsAddingTask(true);
 
     try {
+      const payload = {
+        title: newTask.title,
+        description: newTask.description,
+        type: newTask.type === "daily" ? "daily" : "special",
+      };
+      if (payload.type === "special" && newTask.dueDate) {
+        payload.dueDate = newTask.dueDate;
+      }
+
       const response = await fetch("/api/tasks", {
         credentials: "include",
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(newTask),
+        body: JSON.stringify(payload),
       });
 
       if (response.ok) {
         const task = await response.json();
         setTasks((prev) => [normaliseTask(task), ...prev]);
-        setNewTask({ title: "", description: "" });
+        setNewTask({ title: "", description: "", type: "daily", dueDate: "" });
       }
     } catch (error) {
       console.error("Error adding task:", error);
@@ -197,7 +206,7 @@ export default function Focus() {
       <div className="min-h-screen bg-[var(--background-muted)] flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--accent)] mx-auto"></div>
-          <p className="mt-4 text-[var(--text-secondary)]">Loading your daily mission plan...</p>
+          <p className="mt-4 text-[var(--text-secondary)]">Loading your daily plan...</p>
         </div>
       </div>
     );
@@ -207,43 +216,42 @@ export default function Focus() {
     <div className="min-h-screen bg-[var(--background-muted)]">
       <NavigationBar onLogout={handleLogout} />
       <div className="bg-[var(--surface)] shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-5 py-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-4 sm:gap-5 py-5 sm:py-6 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-[var(--text-primary)]">
+              <h1 className="text-2xl sm:text-3xl font-bold text-[var(--text-primary)]">
                 Focus Command Center
               </h1>
-              <p className="text-sm text-[var(--text-secondary)]">
+              <p className="text-sm sm:text-base text-[var(--text-secondary)]">
                 Assign, track, and close the missions on your plate.
               </p>
             </div>
             <div className="flex flex-col items-start gap-2 text-sm text-[var(--text-secondary)] sm:items-end">
-              <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
-                Execution Briefing
-              </span>
-              {todayLabel && (
-                <span className="text-base font-medium text-[var(--text-primary)]">
-                  Today - {todayLabel}
-                </span>
-              )}
-              <span className="max-w-xs text-left sm:text-right">
-                Keep the queue tight. Move items across the board and keep momentum high.
-              </span>
-            </div>
+        {todayLabel && (
+          <span className="text-base sm:text-lg font-medium text-[var(--text-primary)]">
+            Today – {todayLabel}
+          </span>
+        )}
+        <div className="mt-2 max-w-xs text-left sm:text-right italic text-[var(--text-primary)]">
+          “Discipline is the bridge between goals and accomplishment.”
+          <br />
+          <span className="text-[var(--text-muted)]">— Jim Rohn</span>
+        </div>
+      </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-5xl mx-auto px-3 sm:px-6 lg:px-8 py-8">
         <section className="mb-10">
           <div
-            className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-8"
+            className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-6 sm:p-8"
             style={{ boxShadow: "var(--card-shadow)" }}
           >
-            <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-4">
+            <h2 className="text-base sm:text-lg font-semibold text-[var(--text-primary)] mb-3 sm:mb-4">
               Add to today's to-do list
             </h2>
-            <form onSubmit={handleAddTask} className="space-y-4">
+            <form onSubmit={handleAddTask} className="space-y-3 sm:space-y-4">
               <div>
                 <input
                   type="text"
@@ -268,6 +276,30 @@ export default function Focus() {
                   }
                   className="w-full h-24 resize-none"
                 />
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="text-sm font-medium text-[var(--text-secondary)]">Task type</label>
+                  <select
+                    value={newTask.type}
+                    onChange={(e) => setNewTask((prev) => ({ ...prev, type: e.target.value }))}
+                    className="mt-1 w-full"
+                  >
+                    <option value="daily">Daily</option>
+                    <option value="special">Special (single day)</option>
+                  </select>
+                </div>
+                {newTask.type === "special" && (
+                  <div>
+                    <label className="text-sm font-medium text-[var(--text-secondary)]">Due date</label>
+                    <input
+                      type="date"
+                      value={newTask.dueDate}
+                      onChange={(e) => setNewTask((prev) => ({ ...prev, dueDate: e.target.value }))}
+                      className="mt-1 w-full"
+                    />
+                  </div>
+                )}
               </div>
               <button
                 type="submit"
@@ -304,12 +336,12 @@ export default function Focus() {
         </section>
 
         <section
-          className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-8 mb-10"
+          className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-6 sm:p-8 mb-10"
           style={{ boxShadow: "var(--card-shadow)" }}
         >
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 className="text-xl font-semibold text-[var(--text-primary)]">
+              <h3 className="text-lg sm:text-xl font-semibold text-[var(--text-primary)]">
                 Daily reflection log
               </h3>
               <p className="text-sm text-[var(--text-secondary)]">
@@ -322,7 +354,7 @@ export default function Focus() {
                   : "Solid progress. Finish the pending items or log them before sign-off."}
               </p>
             </div>
-            <div className="rounded-full bg-[var(--surface-subtle)] px-6 py-2 text-center text-sm font-semibold text-[var(--accent)]">
+            <div className="rounded-full bg-[var(--surface-subtle)] px-5 py-2 text-center text-sm font-semibold text-[var(--accent)]">
               {successRate}% completion rate today
             </div>
           </div>
@@ -343,11 +375,11 @@ export default function Focus() {
           {sections.map((status) => (
             <div
               key={status}
-              className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-6"
+              className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-5 sm:p-6"
               style={{ boxShadow: "var(--card-shadow)" }}
             >
-              <div className="flex items-center justify-between gap-3 mb-4">
-                <h2 className="text-xl font-semibold text-[var(--text-primary)]">
+              <div className="flex items-center justify-between gap-3 mb-3 sm:mb-4">
+                <h2 className="text-lg sm:text-xl font-semibold text-[var(--text-primary)]">
                   {status === "pending" && "Still on deck"}
                   {status === "completed" && "Completed today"}
                   {status === "failed" && "Logged as failed"}
@@ -391,14 +423,18 @@ function TaskItem({
   const [editForm, setEditForm] = useState({
     title: task.title,
     description: task.description || "",
+    type: task.type || "special",
+    dueDate: task.dueDate || "",
   });
 
   useEffect(() => {
     setEditForm({
       title: task.title,
       description: task.description || "",
+      type: task.type || "special",
+      dueDate: task.dueDate || "",
     });
-  }, [task._id, task.title, task.description]);
+  }, [task._id, task.title, task.description, task.type, task.dueDate]);
 
   const handleEdit = () => {
     setEditingTask(task._id);
@@ -408,10 +444,18 @@ function TaskItem({
     e.preventDefault();
     if (!editForm.title.trim()) return;
 
-    await onUpdate(task._id, {
+    const payload = {
       title: editForm.title.trim(),
       description: editForm.description.trim(),
-    });
+      type: editForm.type === "daily" ? "daily" : "special",
+    };
+    if (payload.type === "special") {
+      payload.dueDate = editForm.dueDate || null;
+    } else {
+      payload.dueDate = null;
+    }
+
+    await onUpdate(task._id, payload);
   };
 
   const handleCancelEdit = () => {
@@ -419,6 +463,8 @@ function TaskItem({
     setEditForm({
       title: task.title,
       description: task.description || "",
+      type: task.type || "special",
+      dueDate: task.dueDate || "",
     });
   };
 
@@ -456,6 +502,30 @@ function TaskItem({
             className="w-full h-20 resize-none"
             placeholder="Task description..."
           />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="text-sm font-medium text-[var(--text-secondary)]">Task type</label>
+              <select
+                value={editForm.type}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, type: e.target.value }))}
+                className="mt-1 w-full"
+              >
+                <option value="daily">Daily</option>
+                <option value="special">Special (single day)</option>
+              </select>
+            </div>
+            {editForm.type === "special" && (
+              <div>
+                <label className="text-sm font-medium text-[var(--text-secondary)]">Due date</label>
+                <input
+                  type="date"
+                  value={editForm.dueDate}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, dueDate: e.target.value }))}
+                  className="mt-1 w-full"
+                />
+              </div>
+            )}
+          </div>
           <div className="flex flex-wrap gap-2">
             <button type="submit" className="btn-primary sm:px-5">
               Save
@@ -491,8 +561,11 @@ function TaskItem({
                   >
                     {STATUS_LABELS[status]}
                   </span>
+                  <span className="rounded-full border border-[var(--border)] bg-[var(--surface-subtle)] px-2 py-0.5 text-xs text-[var(--text-secondary)]">
+                    {task.type === "daily" ? "Daily" : "Special"}
+                  </span>
                 </div>
-                {task.description && (
+                {(task.description || (task.type === "special" && task.dueDate)) && (
                   <p
                     className={`text-sm ${
                       isCompleted
@@ -501,6 +574,9 @@ function TaskItem({
                     }`}
                   >
                     {task.description}
+                    {task.type === "special" && task.dueDate && (
+                      <span className="ml-3 text-[var(--text-muted)]">Due: {task.dueDate}</span>
+                    )}
                   </p>
                 )}
               </div>

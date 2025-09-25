@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { hashPassword } from "../../../lib/auth";
 import { requireAuth, sanitizeUser } from "../../../lib/api-utils";
@@ -20,18 +20,19 @@ function forbidWhenNotSelf(requestedId, authenticatedId) {
   return null;
 }
 
-export async function GET(request, { params }) {
+export async function GET(request, context) {
   const auth = await requireAuth(request);
   if (auth.error) {
     return auth.error;
   }
 
-  const userId = parseObjectId(params.id);
+  const { id } = await context.params;
+  const userId = parseObjectId(id);
   if (!userId) {
     return NextResponse.json({ message: "Invalid user id" }, { status: 400 });
   }
 
-  const forbidden = forbidWhenNotSelf(params.id, auth.userId);
+  const forbidden = forbidWhenNotSelf(id, auth.userId);
   if (forbidden) {
     return forbidden;
   }
@@ -45,18 +46,19 @@ export async function GET(request, { params }) {
   return NextResponse.json({ user: sanitizeUser(user) }, { status: 200 });
 }
 
-export async function PUT(request, { params }) {
+export async function PUT(request, context) {
   const auth = await requireAuth(request);
   if (auth.error) {
     return auth.error;
   }
 
-  const userId = parseObjectId(params.id);
+  const { id } = await context.params;
+  const userId = parseObjectId(id);
   if (!userId) {
     return NextResponse.json({ message: "Invalid user id" }, { status: 400 });
   }
 
-  const forbidden = forbidWhenNotSelf(params.id, auth.userId);
+  const forbidden = forbidWhenNotSelf(id, auth.userId);
   if (forbidden) {
     return forbidden;
   }
@@ -106,6 +108,10 @@ export async function PUT(request, { params }) {
     update.password = await hashPassword(data.password);
   }
 
+  if (data.timezone) {
+    update.timezone = data.timezone;
+  }
+
   try {
     const result = await auth.db.collection("users").findOneAndUpdate(
       { _id: userId },
@@ -124,18 +130,19 @@ export async function PUT(request, { params }) {
   }
 }
 
-export async function DELETE(request, { params }) {
+export async function DELETE(request, context) {
   const auth = await requireAuth(request);
   if (auth.error) {
     return auth.error;
   }
 
-  const userId = parseObjectId(params.id);
+  const { id } = await context.params;
+  const userId = parseObjectId(id);
   if (!userId) {
     return NextResponse.json({ message: "Invalid user id" }, { status: 400 });
   }
 
-  const forbidden = forbidWhenNotSelf(params.id, auth.userId);
+  const forbidden = forbidWhenNotSelf(id, auth.userId);
   if (forbidden) {
     return forbidden;
   }

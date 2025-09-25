@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function Login() {
   const [formData, setFormData] = useState({
@@ -12,6 +13,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -94,21 +96,22 @@ export default function Login() {
             />
           </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <label
-                htmlFor="password"
-                className="font-medium text-[var(--text-secondary)]"
-              >
-                Password
-              </label>
-              <span className="text-xs uppercase tracking-wide text-[var(--text-secondary)]">
-                Keep it secret
-              </span>
-            </div>
+          <div className="flex items-center justify-between text-sm">
+            <label
+              htmlFor="password"
+              className="font-medium text-[var(--text-secondary)]"
+            >
+              Password
+            </label>
+            <span className="text-xs uppercase tracking-wide text-[var(--text-secondary)]">
+              Keep it secret
+            </span>
+          </div>
+
+          <div className="relative">
             <input
-              className="w-full bg-[var(--surface-subtle)]"
-              type="password"
+              className="w-full bg-[var(--surface-subtle)] pr-10"
+              type={showPassword ? "text" : "password"}
               id="password"
               name="password"
               value={formData.password}
@@ -117,6 +120,14 @@ export default function Login() {
               minLength={6}
               placeholder="Enter your password"
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute inset-y-0 right-2 flex items-center text-[var(--text-secondary)] hover:text-[var(--accent)]"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
           </div>
 
           <button type="submit" className="btn-primary w-full" disabled={loading}>

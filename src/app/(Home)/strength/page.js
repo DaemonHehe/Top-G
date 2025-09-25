@@ -45,6 +45,8 @@ export default function Strength() {
   const [isSaving, setIsSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [syncMessage, setSyncMessage] = useState("");
+  const [filterExercise, setFilterExercise] = useState("");
+  const [collapsed, setCollapsed] = useState({}); // { [label]: boolean }
   const router = useRouter();
 
   useEffect(() => {
@@ -108,6 +110,47 @@ export default function Strength() {
       recent: entries.slice(0, 5),
     };
   }, [entries]);
+
+  const groupedByExercise = useMemo(() => {
+    // Apply filter (by label) if set
+    const source = filterExercise ? entries.filter((e) => (e.exerciseLabel || "Unknown") === filterExercise) : entries;
+
+    const groups = {};
+    for (const entry of source) {
+      const label = entry.exerciseLabel || "Unknown";
+      if (!groups[label]) groups[label] = [];
+      groups[label].push(entry);
+    }
+    // Sort each group's entries by recordedAt desc (most recent first)
+    for (const label of Object.keys(groups)) {
+      groups[label].sort((a, b) => (b.recordedAt || 0) - (a.recordedAt || 0));
+    }
+    // Sort group labels by most recent activity desc
+    const labels = Object.keys(groups).sort((a, b) => {
+      const aRecent = groups[a][0]?.recordedAt || 0;
+      const bRecent = groups[b][0]?.recordedAt || 0;
+      return bRecent - aRecent;
+    });
+    return { labels, groups };
+  }, [entries, filterExercise]);
+
+  const allExerciseLabels = useMemo(() => {
+    const set = new Set(entries.map((e) => e.exerciseLabel || "Unknown"));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [entries]);
+
+  // Default-collapse groups on small screens when labels list changes
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.innerWidth >= 640) return; // sm breakpoint
+    setCollapsed((prev) => {
+      const next = { ...prev };
+      for (const label of groupedByExercise.labels) {
+        if (next[label] === undefined) next[label] = true;
+      }
+      return next;
+    });
+  }, [groupedByExercise.labels]);
 
   const handleChange = (field) => (event) => {
     const value = event.target.value;
@@ -258,35 +301,37 @@ export default function Strength() {
   return (
     <div className="min-h-screen bg-[var(--background-muted)]">
       <NavigationBar onLogout={handleLogout} />
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
-        <header className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-8" style={{ boxShadow: "var(--card-shadow)" }}>
-          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+      <main className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-8 sm:space-y-10">
+        <header className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 sm:p-8" style={{ boxShadow: "var(--card-shadow)" }}>
+          <div className="flex flex-col gap-4 sm:gap-6 md:flex-row md:items-center md:justify-between">
             <div className="space-y-3">
               <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
                 Strength - Lift Journal
               </span>
-              <h1 className="text-3xl font-bold text-[var(--text-primary)]">Strength Tracking Hub</h1>
-              <p className="text-[var(--text-secondary)] max-w-xl">
-                Log top sets, monitor progressive overload, and keep your lift history synced with the rest of your operation.
+              <h1 className="text-2xl sm:text-3xl font-bold text-[var(--text-primary)]">Strength Tracking Hub</h1>
+              <p className="text-sm sm:text-base text-[var(--text-secondary)] max-w-xl italic">
+                “The pain you feel today will be the strength you feel tomorrow.”
+                <br />
+                <span className="text-[var(--text-muted)]">— Arnold Schwarzenegger</span>
               </p>
             </div>
-            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-sm text-[var(--text-secondary)]">
-              <p className="text-lg font-semibold text-[var(--text-primary)]">{metrics.total}</p>
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-3 sm:p-4 text-sm text-[var(--text-secondary)]">
+              <p className="text-base sm:text-lg font-semibold text-[var(--text-primary)]">{metrics.total}</p>
               <p>Total sets logged</p>
             </div>
           </div>
           {syncMessage && (
-            <p className="mt-4 text-sm text-[var(--warning-text)]">{syncMessage}</p>
+            <p className="mt-3 sm:mt-4 text-sm text-[var(--warning-text)]">{syncMessage}</p>
           )}
         </header>
 
-        <section className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6" style={{ boxShadow: "var(--card-shadow)" }}>
-            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Log a new lift</h2>
-            <p className="mt-1 text-sm text-[var(--text-secondary)]">
+        <section className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6" style={{ boxShadow: "var(--card-shadow)" }}>
+            <h2 className="text-base sm:text-lg font-semibold text-[var(--text-primary)]">Log a new lift</h2>
+            <p className="mt-1 text-xs sm:text-sm text-[var(--text-secondary)]">
               Capture your primary sets with weight, rep count, and optional notes.
             </p>
-            <form onSubmit={handleAddEntry} className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <form onSubmit={handleAddEntry} className="mt-4 sm:mt-6 grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2">
               <div className="md:col-span-2 space-y-2">
                 <label className="text-sm font-medium text-[var(--text-secondary)]" htmlFor="exercise-select">
                   Exercise
@@ -386,57 +431,96 @@ export default function Strength() {
               </ul>
             </div>
             <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6" style={{ boxShadow: "var(--card-shadow)" }}>
-              <h2 className="text-lg font-semibold text-[var(--text-primary)]">Next actions</h2>
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">Training Tips</h2>
               <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-[var(--text-secondary)]">
-                <li>Tag notes with tempo or rest time to surface patterns.</li>
-                <li>Review the dashboard Home tab for velocity comparisons.</li>
-                <li>Sync failed lifts with task reviews to unblock progress.</li>
+                <li>Progressive overload works best with small weekly weight jumps.</li>
+                <li>Prioritise compound lifts before isolation work for maximal strength gains.</li>
+                <li>Sleep 7-9 hours to optimise recovery and muscle growth.</li>
+              </ul>
+            </div>
+            <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6" style={{ boxShadow: "var(--card-shadow)" }}>
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">Recovery Checklist</h2>
+              <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-[var(--text-secondary)]">
+                <li>Stretch major muscle groups for 10–15 minutes post-workout.</li>
+                <li>Drink at least 2–3 L of water throughout the day.</li>
+                <li>Plan at least one full rest day every 5–7 days.</li>
               </ul>
             </div>
           </div>
         </section>
-
-        <section className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-8" style={{ boxShadow: "var(--card-shadow)" }}>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        {/* Lift history - grouped and collapsible */}
+        <section className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 sm:p-8" style={{ boxShadow: "var(--card-shadow)" }}>
+          <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-[var(--text-primary)]">Lift history</h2>
-              <p className="text-sm text-[var(--text-secondary)]">Your most recent entries appear first. Use them to plan your next progression jumps.</p>
+              <h2 className="text-lg sm:text-xl font-semibold text-[var(--text-primary)]">Lift history</h2>
+              <p className="text-xs sm:text-sm text-[var(--text-secondary)]">Use the filter to focus on one lift.</p>
+            </div>
+            <div className="sm:min-w-[220px]">
+              <label className="text-sm font-medium text-[var(--text-secondary)]">Filter by exercise</label>
+              <select
+                className="mt-1 w-full"
+                value={filterExercise}
+                onChange={(e) => setFilterExercise(e.target.value)}
+              >
+                <option value="">All exercises</option>
+                {allExerciseLabels.map((label) => (
+                  <option key={label} value={label}>{label}</option>
+                ))}
+              </select>
             </div>
           </div>
           {entries.length === 0 ? (
             <p className="mt-6 text-sm text-[var(--text-secondary)]">No lifts logged yet. Start with the form above to capture your training data.</p>
           ) : (
-            <ul className="mt-6 space-y-4">
-              {entries.map((entry) => (
-                <li key={entry._id} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-5">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-lg font-semibold text-[var(--text-primary)]">{entry.exerciseLabel}</h3>
-                        {entry.isLocal && (
-                          <span className="rounded-full border border-[var(--warning-border)] bg-[var(--warning-bg)] px-2 py-0.5 text-xs font-semibold text-[var(--warning-text)]">
-                            Unsynced
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-[var(--text-secondary)]">
-                        {entry.weight} kg x {entry.reps} reps
-                        <span className="ml-3 text-[var(--text-muted)]">{entry.date}</span>
-                      </p>
-                      {entry.notes && (
-                        <p className="text-sm text-[var(--text-secondary)]">{entry.notes}</p>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => handleDeleteEntry(entry._id)}
-                      className="self-start text-sm text-[var(--danger)] hover:text-[var(--danger-hover)]"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </li>
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+              {groupedByExercise.labels.map((label) => (
+                <div key={label} className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => setCollapsed((prev) => ({ ...prev, [label]: !prev[label] }))}
+                    className="w-full flex items-center justify-between rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2 md:px-4 md:py-3 text-left"
+                  >
+                    <span className="text-base md:text-lg font-semibold text-[var(--text-primary)] truncate" title={label}>{label}</span>
+                    <span className="flex items-center gap-2 md:gap-3 text-xs md:text-sm text-[var(--text-secondary)]">
+                      <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 text-xs">{groupedByExercise.groups[label].length} sets</span>
+                      <svg className={`h-4 w-4 transition-transform ${collapsed[label] ? "rotate-180" : ""}`} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.084l3.71-3.853a.75.75 0 111.08 1.04l-4.24 4.4a.75.75 0 01-1.08 0l-4.24-4.4a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                      </svg>
+                    </span>
+                  </button>
+                  {!collapsed[label] && (
+                    <ul className="space-y-3 md:space-y-4">
+                      {groupedByExercise.groups[label].map((entry) => (
+                        <li key={entry._id} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4 md:p-5">
+                          <div className="flex flex-col gap-2 md:gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                {entry.isLocal && (
+                                  <span className="rounded-full border border-[var(--warning-border)] bg-[var(--warning-bg)] px-2 py-0.5 text-xs font-semibold text-[var(--warning-text)]">Unsynced</span>
+                                )}
+                              </div>
+                              <p className="text-sm text-[var(--text-secondary)]">
+                                {entry.weight} kg x {entry.reps} reps
+                                <span className="ml-3 text-[var(--text-muted)]">{entry.date}</span>
+                              </p>
+                              {entry.notes && (
+                                <p className="text-sm text-[var(--text-secondary)]">{entry.notes}</p>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => handleDeleteEntry(entry._id)}
+                              className="self-start text-sm text-[var(--danger)] hover:text-[var(--danger-hover)]"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               ))}
-            </ul>
+            </div>
           )}
         </section>
       </main>

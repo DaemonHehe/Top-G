@@ -1,4 +1,4 @@
-﻿const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 6;
 
 export function validateEmail(email) {
@@ -68,6 +68,15 @@ export function validateUserUpdate(payload = {}) {
       errors.password = `Password must be at least ${MIN_PASSWORD_LENGTH} characters`;
     } else {
       data.password = password;
+    }
+  }
+
+  if (payload.timezone !== undefined) {
+    const timezone = typeof payload.timezone === "string" ? payload.timezone.trim() : "";
+    if (!timezone) {
+      errors.timezone = "Timezone cannot be empty";
+    } else {
+      data.timezone = timezone;
     }
   }
 

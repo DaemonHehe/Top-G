@@ -91,10 +91,10 @@ export default function Register() {
         <div className="flex flex-col justify-center p-10">
           <div className="mb-8">
             <h1 className="text-3xl font-semibold text-[var(--text-primary)]">
-              Create your account
+              Get started—your productivity HQ awaits
             </h1>
             <p className="mt-2 text-sm text-[var(--text-secondary)]">
-              Join the Top-G workspace and start crafting your daily impact.
+              Sign up in seconds to plan smarter and track every win.
             </p>
           </div>
 
@@ -159,6 +159,7 @@ export default function Register() {
                 minLength={6}
                 placeholder="At least 6 characters"
               />
+              
             </div>
 
             <button type="submit" className="btn-primary w-full" disabled={loading}>
