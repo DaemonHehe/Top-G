@@ -5,10 +5,11 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 const NAV_LINKS = [
-  { href: "/dashboard", label: "Home" },
+  { href: "/", label: "Home" },
   { href: "/focus", label: "Focus" },
   { href: "/strength", label: "Strength" },
   { href: "/reach-out", label: "Reach Out" },
+  { href: "/profile", label: "Profile" },
 ];
 
 export default function NavigationBar({ onLogout }) {
@@ -16,8 +17,8 @@ export default function NavigationBar({ onLogout }) {
   const [open, setOpen] = useState(false);
 
   const isActive = (href) => {
-    if (href === "/dashboard") {
-      return pathname === href;
+    if (href === "/") {
+      return pathname === "/";
     }
     return pathname?.startsWith(href);
   };
@@ -40,7 +41,7 @@ export default function NavigationBar({ onLogout }) {
     <header className="sticky top-0 z-40 bg-[var(--surface)]/90 backdrop-blur border-b border-[var(--border)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between gap-4">
-          <Link href="/dashboard" className="flex items-center gap-2 min-w-0">
+          <Link href="/" className="flex items-center gap-2 min-w-0">
             <span className="text-lg font-semibold text-[var(--text-primary)] truncate">Top-G</span>
             <span className="hidden text-sm text-[var(--text-secondary)] sm:inline">Productivity Suite</span>
           </Link>

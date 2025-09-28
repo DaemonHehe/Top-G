@@ -167,7 +167,8 @@ export default function Focus() {
   const handleLogout = async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-      router.push("/");
+      router.replace("/login");
+      router.refresh();
     } catch (error) {
       console.error("Logout error:", error);
     }

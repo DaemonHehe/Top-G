@@ -9,6 +9,7 @@ export async function POST() {
     value: "",
     path: "/",
     httpOnly: true,
+    maxAge: 0,
     expires: new Date(0),
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",

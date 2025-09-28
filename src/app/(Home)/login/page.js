@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -36,7 +36,7 @@ export default function Login() {
       const data = await response.json();
 
       if (response.ok) {
-        router.replace("/dashboard");
+        router.replace("/profile");
         router.refresh();
       } else {
         setError(data.message || "Login failed");
@@ -131,7 +131,7 @@ export default function Login() {
           </div>
 
           <button type="submit" className="btn-primary w-full" disabled={loading}>
-            {loading ? "Signing in..." : "Enter dashboard"}
+            {loading ? "Signing in..." : "Enter profile"}
           </button>
         </form>
 

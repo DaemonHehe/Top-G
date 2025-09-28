@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import NavigationBar from "../../components/navigation-bar";
 import { useRouter } from "next/navigation";
 
@@ -23,15 +24,68 @@ const CONTACT_METHODS = [
 
 export default function ReachOut() {
   const router = useRouter();
+  const [feedbackForm, setFeedbackForm] = useState({ name: "", email: "", message: "" });
+  const [feedbackStatus, setFeedbackStatus] = useState({ state: "idle", message: "" });
 
   const handleLogout = async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-      router.push("/");
+      router.replace("/login");
+      router.refresh();
     } catch (error) {
       console.error("Logout error:", error);
     }
   };
+
+  const handleFeedbackChange = (field) => (event) => {
+    const value = event.target.value;
+    setFeedbackForm((prev) => ({ ...prev, [field]: value }));
+    if (feedbackStatus.state !== "idle") {
+      setFeedbackStatus({ state: "idle", message: "" });
+    }
+  };
+
+  const handleFeedbackSubmit = async (event) => {
+    event.preventDefault();
+    const name = feedbackForm.name.trim();
+    const email = feedbackForm.email.trim();
+    const message = feedbackForm.message.trim();
+
+    if (!name || !email || !message) {
+      setFeedbackStatus({ state: "error", message: "Please complete every field before sending your feedback." });
+      return;
+    }
+
+    const emailPattern = /[^@\s]+@[^@\s]+\.[^@\s]+/;
+    if (!emailPattern.test(email)) {
+      setFeedbackStatus({ state: "error", message: "Enter a valid email so we know where to reply." });
+      return;
+    }
+
+    setFeedbackStatus({ state: "loading", message: "" });
+
+    try {
+      const response = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, message }),
+      });
+
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        const errorMessage = data?.message || "We couldn't send your feedback. Try again in a moment.";
+        throw new Error(errorMessage);
+      }
+
+      setFeedbackStatus({ state: "success", message: data?.message || "Thanks for reaching out! We'll get back to you shortly." });
+      setFeedbackForm({ name: "", email: "", message: "" });
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : "We couldn't send your feedback. Try again in a moment.";
+      setFeedbackStatus({ state: "error", message: messageText });
+    }
+  };
+
+  const isSubmitting = feedbackStatus.state === "loading";
 
   return (
     <div className="min-h-screen bg-[var(--background-muted)]">
@@ -42,7 +96,7 @@ export default function ReachOut() {
             Feedback & Questions
           </span>
           <h1 className="mt-4 text-3xl font-bold text-[var(--text-primary)]">
-            We’d love to hear from you
+            We'd love to hear from you
           </h1>
           <p className="mt-3 text-[var(--text-secondary)]">
             Share your thoughts, report an issue, or tell us how we can improve. Your feedback helps us build a better experience.
@@ -79,35 +133,69 @@ export default function ReachOut() {
         <section className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-8" style={{ boxShadow: "var(--card-shadow)" }}>
           <h2 className="text-xl font-semibold text-[var(--text-primary)]">Send Us Your Feedback</h2>
           <p className="mt-3 text-sm text-[var(--text-secondary)]">
-            Fill out the form and we’ll respond as soon as possible.
+            Fill out the form and we'll respond as soon as possible.
           </p>
-          <form className="mt-6 space-y-4">
+          <form className="mt-6 space-y-4" onSubmit={handleFeedbackSubmit} noValidate>
             <div>
               <label className="text-sm font-medium text-[var(--text-secondary)]" htmlFor="contact-name">
                 Name
               </label>
-              <input id="contact-name" type="text" placeholder="Jane Doe" className="mt-1 w-full" />
+              <input
+                id="contact-name"
+                type="text"
+                placeholder="Jane Doe"
+                className="mt-1 w-full"
+                value={feedbackForm.name}
+                onChange={handleFeedbackChange("name")}
+                disabled={isSubmitting}
+                required
+              />
             </div>
             <div>
               <label className="text-sm font-medium text-[var(--text-secondary)]" htmlFor="contact-email">
                 Email
               </label>
-              <input id="contact-email" type="email" placeholder="you@example.com" className="mt-1 w-full" />
+              <input
+                id="contact-email"
+                type="email"
+                placeholder="you@example.com"
+                className="mt-1 w-full"
+                value={feedbackForm.email}
+                onChange={handleFeedbackChange("email")}
+                disabled={isSubmitting}
+                required
+              />
             </div>
             <div>
               <label className="text-sm font-medium text-[var(--text-secondary)]" htmlFor="contact-message">
                 Message
               </label>
-              <textarea id="contact-message" className="mt-1 h-32 w-full resize-none" placeholder="Share what you are building and where you need support." />
+              <textarea
+                id="contact-message"
+                className="mt-1 h-32 w-full resize-none"
+                placeholder="Share what you are building and where you need support."
+                value={feedbackForm.message}
+                onChange={handleFeedbackChange("message")}
+                disabled={isSubmitting}
+                required
+              />
             </div>
-            <p className="text-xs text-[var(--text-muted)]">
-              Form submissions are not wired yet. Email directly for immediate support.
-            </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <button type="submit" className="btn-primary sm:w-auto" disabled={isSubmitting}>
+                {isSubmitting ? "Sending..." : "Send feedback"}
+              </button>
+              <div className="space-y-1 text-xs">
+                {feedbackStatus.message && (
+                  <p className={feedbackStatus.state === "error" ? "text-[var(--danger)]" : "text-[var(--success-text)]"}>
+                    {feedbackStatus.message}
+                  </p>
+                )}
+                <p className="text-[var(--text-muted)]">We usually reply within two business days.</p>
+              </div>
+            </div>
           </form>
         </section>
       </main>
     </div>
   );
 }
-
-

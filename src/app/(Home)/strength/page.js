@@ -39,6 +39,70 @@ const normaliseEntry = (entry) => {
   };
 };
 
+const plateauThreshold = 2.5;
+const plateauWindow = 3;
+
+const formatWeekRange = (weekStartIso, weekEndIso) => {
+  if (!weekStartIso) return "Week";
+  try {
+    const start = new Date(weekStartIso);
+    const end = weekEndIso ? new Date(weekEndIso) : null;
+    const startLabel = start.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    const endLabel = end ? end.toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
+    return endLabel ? `${startLabel} - ${endLabel}` : startLabel;
+  } catch (error) {
+    console.warn('Week label format error:', error);
+    return weekStartIso;
+  }
+};
+
+const formatWeightDisplay = (weight) => {
+  if (!Number.isFinite(weight) || weight <= 0) return "No top set";
+  return `${weight} kg`;
+};
+
+const SPARKLINE_WIDTH = 160;
+const SPARKLINE_HEIGHT = 60;
+
+const buildSparklinePoints = (values, width = SPARKLINE_WIDTH, height = SPARKLINE_HEIGHT) => {
+  if (!Array.isArray(values) || values.length === 0) {
+    return { points: `0,${height}`, latest: { x: 0, y: height / 2 } };
+  }
+
+  const numericValues = values.map((value) => (Number.isFinite(Number(value)) ? Number(value) : 0));
+  const max = Math.max(...numericValues);
+  const min = Math.min(...numericValues);
+  const range = max - min;
+  const step = numericValues.length > 1 ? width / (numericValues.length - 1) : width;
+
+  const coords = numericValues.map((value, index) => {
+    const x = Number((index * step).toFixed(2));
+    const ratio = range > 0 ? (value - min) / range : 0.5;
+    const y = Number((height - ratio * height).toFixed(2));
+    return { x, y };
+  });
+
+  const points = coords.map(({ x, y }) => `${x},${y}`).join(' ');
+  const latest = coords[coords.length - 1] || { x: 0, y: height / 2 };
+
+  return { points, latest };
+};
+
+const formatVolumeLabel = (value) => {
+  if (!Number.isFinite(value)) return "0";
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(1)}M`;
+  }
+  if (abs >= 1_000) {
+    return `${(value / 1_000).toFixed(1)}k`;
+  }
+  if (abs >= 100) {
+    return Number(value.toFixed(1)).toString();
+  }
+  return value.toFixed(2).replace(/\.00$/, "");
+};
+
 export default function Strength() {
   const [entries, setEntries] = useState([]);
   const [form, setForm] = useState(initialForm);
@@ -48,6 +112,14 @@ export default function Strength() {
   const [filterExercise, setFilterExercise] = useState("");
   const [collapsed, setCollapsed] = useState({}); // { [label]: boolean }
   const router = useRouter();
+
+  const [weeklySummary, setWeeklySummary] = useState([]);
+  const [weeklyMeta, setWeeklyMeta] = useState({ window: plateauWindow, threshold: plateauThreshold });
+  const [weeklyLoading, setWeeklyLoading] = useState(true);
+  const [weeklyError, setWeeklyError] = useState("");
+  const [overallTrendWeeks, setOverallTrendWeeks] = useState([]);
+  const [overallPlateau, setOverallPlateau] = useState(null);
+
 
   useEffect(() => {
     let isMounted = true;
@@ -75,7 +147,48 @@ export default function Strength() {
       }
     };
 
+    const fetchWeekly = async () => {
+      try {
+        const response = await fetch("/api/lifts/weekly", { credentials: "include" });
+        if (!response.ok) {
+          throw new Error("Failed to fetch weekly lifts");
+        }
+        const payload = await response.json();
+        if (!isMounted) {
+          return;
+        }
+        const exercises = Array.isArray(payload?.exercises) ? payload.exercises : [];
+        const overall = payload?.overall || null;
+        const overallWeeks = Array.isArray(overall?.weeks) ? overall.weeks.filter(Boolean) : [];
+        setWeeklySummary(exercises);
+        setOverallTrendWeeks(overallWeeks);
+        setOverallPlateau(overall?.plateau ?? null);
+        setWeeklyMeta({
+          window: typeof payload?.window === "number" ? payload.window : plateauWindow,
+          threshold: typeof payload?.threshold === "number" ? payload.threshold : plateauThreshold,
+        });
+        setWeeklyError("");
+      } catch (error) {
+        console.error("Unable to load weekly lifts:", error);
+        if (isMounted) {
+          setWeeklyError("Weekly trend unavailable. We'll try again soon.");
+          setWeeklySummary([]);
+          setOverallTrendWeeks([]);
+          setOverallPlateau(null);
+        }
+      } finally {
+        if (isMounted) {
+          setWeeklyLoading(false);
+        }
+      }
+    };
+
+    setLoading(true);
+    setWeeklyLoading(true);
+    setWeeklyError("");
     fetchLifts();
+    fetchWeekly();
+
     return () => {
       isMounted = false;
     };
@@ -133,6 +246,144 @@ export default function Strength() {
     });
     return { labels, groups };
   }, [entries, filterExercise]);
+
+  const weeklyInsights = useMemo(() => {
+    if (!Array.isArray(weeklySummary) || weeklySummary.length === 0) {
+      return { plateaus: [], recent: [] };
+    }
+
+    const plateaus = weeklySummary
+      .filter((item) => item?.plateau?.isPlateau)
+      .map((item) => {
+        const weeks = Array.isArray(item.weeks) ? item.weeks : [];
+        const recent = weeks.slice(-plateauWindow);
+        return {
+          exerciseLabel: item.exerciseLabel,
+          stagnantWeeks: item.plateau?.stagnantWeeks ?? 0,
+          recent,
+          latest: recent[recent.length - 1] || null,
+        };
+      });
+
+    const recent = weeklySummary
+      .map((item) => {
+        const weeks = Array.isArray(item.weeks) ? item.weeks : [];
+        const latest = weeks[weeks.length - 1] || null;
+        const previous = weeks[weeks.length - 2] || null;
+        const latestWeight = latest ? Number(latest.topWeight || 0) : null;
+        const previousWeight = previous ? Number(previous.topWeight || 0) : null;
+        const delta =
+          latestWeight !== null && previousWeight !== null
+            ? Number((latestWeight - previousWeight).toFixed(2))
+            : null;
+        return {
+          exerciseLabel: item.exerciseLabel,
+          latest,
+          delta,
+        };
+      })
+      .sort((a, b) => {
+        const aTime = a.latest?.weekStartIso ? new Date(a.latest.weekStartIso).getTime() : 0;
+        const bTime = b.latest?.weekStartIso ? new Date(b.latest.weekStartIso).getTime() : 0;
+        return bTime - aTime;
+      });
+
+    return { plateaus, recent };
+  }, [weeklySummary]);
+
+  const overallTrend = useMemo(() => {
+    const weeks = Array.isArray(overallTrendWeeks) ? overallTrendWeeks.filter(Boolean) : [];
+    if (weeks.length === 0) {
+      return null;
+    }
+
+    const sortedWeeks = weeks
+      .map((week) => ({
+        ...week,
+        totalVolume: Number(week.totalVolume ?? 0),
+        totalSets: Number(week.totalSets ?? 0),
+        averageWeight: Number(week.averageWeight ?? 0),
+        topWeight: Number(week.topWeight ?? 0),
+        topReps: Number(week.topReps ?? 0),
+      }))
+      .sort((a, b) => {
+        const aTime = a.weekStartIso ? new Date(a.weekStartIso).getTime() : 0;
+        const bTime = b.weekStartIso ? new Date(b.weekStartIso).getTime() : 0;
+        return aTime - bTime;
+      });
+
+    const recentWeeks = sortedWeeks.slice(-6);
+    const volumes = recentWeeks.map((week) => (Number.isFinite(week.totalVolume) ? week.totalVolume : 0));
+    const sparkline = buildSparklinePoints(volumes);
+    const latest = recentWeeks[recentWeeks.length - 1] || null;
+    const previous = recentWeeks[recentWeeks.length - 2] || null;
+
+    const latestVolume = latest ? Number(latest.totalVolume ?? 0) : null;
+    const previousVolume = previous ? Number(previous.totalVolume ?? 0) : null;
+    const volumeDelta =
+      latestVolume !== null && previousVolume !== null
+        ? Number((latestVolume - previousVolume).toFixed(2))
+        : null;
+
+    return {
+      weeks: recentWeeks,
+      startLabel: recentWeeks[0] ? formatWeekRange(recentWeeks[0].weekStartIso, recentWeeks[0].weekEndIso) : "",
+      endLabel: latest ? formatWeekRange(latest.weekStartIso, latest.weekEndIso) : "",
+      sparkline,
+      latest,
+      latestVolume,
+      previousVolume,
+      volumeDelta,
+      latestSets: latest ? Number(latest.totalSets ?? 0) : 0,
+      averageWeight: latest ? Number(latest.averageWeight ?? 0) : 0,
+      topWeight: latest ? Number(latest.topWeight ?? 0) : null,
+      topReps: latest ? Number(latest.topReps ?? 0) : null,
+      topExerciseLabel: latest?.topExerciseLabel || "",
+      plateau: overallPlateau || null,
+    };
+  }, [overallTrendWeeks, overallPlateau]);
+
+  const trendExercises = useMemo(() => {
+    if (!Array.isArray(weeklySummary) || weeklySummary.length === 0) {
+      return [];
+    }
+
+    return weeklySummary
+      .map((item) => {
+        const weeks = Array.isArray(item.weeks) ? item.weeks.filter(Boolean) : [];
+        if (weeks.length === 0) return null;
+        const recentWeeks = weeks.slice(-6);
+        const values = recentWeeks.map((week) => Number(week.topWeight || 0));
+        if (!values.some((value) => value > 0)) {
+          return null;
+        }
+        const sparkline = buildSparklinePoints(values);
+        const latest = recentWeeks[recentWeeks.length - 1] || null;
+        const previous = recentWeeks[recentWeeks.length - 2] || null;
+        const latestWeight = latest ? Number(latest.topWeight || 0) : null;
+        const previousWeight = previous ? Number(previous?.topWeight || 0) : null;
+        const delta =
+          latestWeight !== null && previousWeight !== null
+            ? Number((latestWeight - previousWeight).toFixed(2))
+            : null;
+        return {
+          exerciseLabel: item.exerciseLabel,
+          weeks: recentWeeks,
+          values,
+          sparkline,
+          latest,
+          latestWeight,
+          delta,
+          startLabel: recentWeeks[0]
+            ? formatWeekRange(recentWeeks[0].weekStartIso, recentWeeks[0].weekEndIso)
+            : "",
+          endLabel: latest ? formatWeekRange(latest.weekStartIso, latest.weekEndIso) : "",
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => Number(b.latestWeight || 0) - Number(a.latestWeight || 0))
+      .slice(0, 3);
+  }, [weeklySummary]);
 
   const allExerciseLabels = useMemo(() => {
     const set = new Set(entries.map((e) => e.exerciseLabel || "Unknown"));
@@ -281,7 +532,8 @@ export default function Strength() {
   const handleLogout = async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-      router.push("/");
+      router.replace("/login");
+      router.refresh();
     } catch (error) {
       console.error("Logout error:", error);
     }
@@ -324,6 +576,89 @@ export default function Strength() {
             <p className="mt-3 sm:mt-4 text-sm text-[var(--warning-text)]">{syncMessage}</p>
           )}
         </header>
+
+        <section className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 sm:p-8" style={{ boxShadow: "var(--card-shadow)" }}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg sm:text-xl font-semibold text-[var(--text-primary)]">Overall strength trend</h2>
+              <p className="text-xs sm:text-sm text-[var(--text-secondary)]">Aggregated weekly volume across every logged lift.</p>
+            </div>
+            {overallTrend?.plateau?.isPlateau && (
+              <span className="rounded-full border border-[var(--warning-border)] bg-[var(--warning-bg)] px-3 py-1 text-xs font-semibold text-[var(--warning-text)]">
+                Volume plateau ({overallTrend.plateau?.stagnantWeeks ?? 0} weeks)
+              </span>
+            )}
+          </div>
+          {weeklyLoading ? (
+            <div className="mt-6 flex h-20 items-center justify-center">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[var(--accent)]"></div>
+            </div>
+          ) : weeklyError ? (
+            <p className="mt-4 text-sm text-[var(--text-secondary)]">{weeklyError}</p>
+          ) : !overallTrend ? (
+            <p className="mt-4 text-sm text-[var(--text-secondary)]">Log lifts across consecutive weeks to see your global strength trend.</p>
+          ) : (
+            <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)]">
+              <div>
+                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
+                  <svg
+                    className="h-24 w-full text-[var(--accent)]"
+                    viewBox={`0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`}
+                    preserveAspectRatio="none"
+                  >
+                    <polyline
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      points={overallTrend.sparkline.points}
+                    />
+                    <circle cx={overallTrend.sparkline.latest.x} cy={overallTrend.sparkline.latest.y} r="3" fill="currentColor" />
+                  </svg>
+                  <div className="mt-3 flex items-center justify-between text-[10px] uppercase tracking-wide text-[var(--text-muted)]">
+                    <span>{overallTrend.startLabel || "Start"}</span>
+                    <span>{overallTrend.endLabel || "Latest"}</span>
+                  </div>
+                </div>
+                <p className="mt-4 text-xs sm:text-sm text-[var(--text-secondary)]">Weekly volume sums every logged set. Keep stacking consistent weeks to accelerate progress.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
+                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Volume</p>
+                  <p className="mt-1 text-lg font-semibold text-[var(--text-primary)]">
+                    {formatVolumeLabel(overallTrend.latestVolume ?? 0)} kg
+                  </p>
+                  {overallTrend.volumeDelta !== null && (
+                    <p className={`text-xs ${overallTrend.volumeDelta >= 0 ? "text-[var(--success-text)]" : "text-[var(--danger)]"}`}>
+                      {overallTrend.volumeDelta >= 0 ? "+" : ""}
+                      {formatVolumeLabel(overallTrend.volumeDelta)} kg vs prev.
+                    </p>
+                  )}
+                </div>
+                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
+                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Sets logged</p>
+                  <p className="mt-1 text-lg font-semibold text-[var(--text-primary)]">{overallTrend.latestSets}</p>
+                  <p className="text-xs text-[var(--text-secondary)]">For week ending {overallTrend.endLabel || "latest"}</p>
+                </div>
+                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
+                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Avg load</p>
+                  <p className="mt-1 text-lg font-semibold text-[var(--text-primary)]">
+                    {overallTrend.averageWeight > 0 ? `${overallTrend.averageWeight.toFixed(1)} kg` : "No data"}
+                  </p>
+                  <p className="text-xs text-[var(--text-secondary)]">Per logged set</p>
+                </div>
+                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
+                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Top set</p>
+                  <p className="mt-1 text-lg font-semibold text-[var(--text-primary)]">{formatWeightDisplay(overallTrend.topWeight)}</p>
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    {overallTrend.topExerciseLabel
+                      ? `${overallTrend.topExerciseLabel} - ${overallTrend.topReps || 0} reps`
+                      : "Log lifts to see highlights"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
 
         <section className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6" style={{ boxShadow: "var(--card-shadow)" }}>
@@ -441,9 +776,9 @@ export default function Strength() {
             <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6" style={{ boxShadow: "var(--card-shadow)" }}>
               <h2 className="text-lg font-semibold text-[var(--text-primary)]">Recovery Checklist</h2>
               <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-[var(--text-secondary)]">
-                <li>Stretch major muscle groups for 10–15 minutes post-workout.</li>
-                <li>Drink at least 2–3 L of water throughout the day.</li>
-                <li>Plan at least one full rest day every 5–7 days.</li>
+                <li>Stretch major muscle groups for 10-15 minutes post-workout.</li>
+                <li>Drink at least 2-3 L of water throughout the day.</li>
+                <li>Plan at least one full rest day every 5-7 days.</li>
               </ul>
             </div>
           </div>

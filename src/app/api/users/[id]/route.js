@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
-import { hashPassword } from "../../../lib/auth";
+import { hashPassword, verifyPassword } from "../../../lib/auth";
 import { requireAuth, sanitizeUser } from "../../../lib/api-utils";
 import { validateUserUpdate, hasValidationErrors } from "../../../lib/validators";
 
@@ -53,14 +53,19 @@ export async function PUT(request, context) {
   }
 
   const { id } = await context.params;
-  const userId = parseObjectId(id);
-  if (!userId) {
+  const requestedUserId = parseObjectId(id);
+  if (!requestedUserId) {
     return NextResponse.json({ message: "Invalid user id" }, { status: 400 });
   }
 
   const forbidden = forbidWhenNotSelf(id, auth.userId);
   if (forbidden) {
     return forbidden;
+  }
+
+  const authenticatedUserId = parseObjectId(auth.userId || auth.user?._id?.toString());
+  if (!authenticatedUserId) {
+    return NextResponse.json({ message: "Invalid authenticated user id" }, { status: 400 });
   }
 
   let body;
@@ -72,8 +77,25 @@ export async function PUT(request, context) {
 
   const { data, errors } = validateUserUpdate(body);
 
+  const currentPasswordRaw = typeof body.currentPassword === "string" ? body.currentPassword : "";
+
   if (Object.keys(data).length === 0) {
     errors.general = "No valid fields provided";
+  }
+
+  if (data.password) {
+    if (!currentPasswordRaw) {
+      return NextResponse.json({ message: "Current password is required" }, { status: 400 });
+    }
+
+    if (!auth.user?.password) {
+      return NextResponse.json({ message: "Password updates are not available for this account" }, { status: 400 });
+    }
+
+    const passwordMatches = await verifyPassword(currentPasswordRaw, auth.user.password);
+    if (!passwordMatches) {
+      return NextResponse.json({ message: "Current password is incorrect" }, { status: 400 });
+    }
   }
 
   if (hasValidationErrors(errors)) {
@@ -86,7 +108,7 @@ export async function PUT(request, context) {
   if (data.email) {
     const duplicate = await auth.db.collection("users").findOne({
       email: data.email,
-      _id: { $ne: userId },
+      _id: { $ne: authenticatedUserId },
     });
 
     if (duplicate) {
@@ -112,15 +134,23 @@ export async function PUT(request, context) {
     update.timezone = data.timezone;
   }
 
+  if (data.avatar) {
+    update.avatar = data.avatar;
+  }
+
   try {
     const result = await auth.db.collection("users").findOneAndUpdate(
-      { _id: userId },
+      { _id: authenticatedUserId },
       { $set: update },
       { returnDocument: "after" }
     );
 
     if (!result.value) {
-      return NextResponse.json({ message: "User not found" }, { status: 404 });
+      const fallback = await auth.db.collection("users").findOne({ _id: authenticatedUserId });
+      if (!fallback) {
+        return NextResponse.json({ message: "We couldn't find your account. Please sign in again." }, { status: 404 });
+      }
+      return NextResponse.json({ user: sanitizeUser(fallback) }, { status: 200 });
     }
 
     return NextResponse.json({ user: sanitizeUser(result.value) }, { status: 200 });

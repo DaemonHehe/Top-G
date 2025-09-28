@@ -46,6 +46,7 @@ export function sanitizeUser(user) {
     _id: user._id?.toString(),
     name: user.name,
     email: user.email,
+    avatar: user.avatar || user.avatarUrl || null,
     timezone: user.timezone || null,
     createdAt:
       user.createdAt instanceof Date ? user.createdAt.toISOString() : user.createdAt,
