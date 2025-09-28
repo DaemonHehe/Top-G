@@ -230,13 +230,13 @@ export default function Focus() {
             <div className="flex flex-col items-start gap-2 text-sm text-[var(--text-secondary)] sm:items-end">
         {todayLabel && (
           <span className="text-base sm:text-lg font-medium text-[var(--text-primary)]">
-            Today – {todayLabel}
+            Today â€“ {todayLabel}
           </span>
         )}
         <div className="mt-2 max-w-xs text-left sm:text-right italic text-[var(--text-primary)]">
-          “Discipline is the bridge between goals and accomplishment.”
+          â€œDiscipline is the bridge between goals and accomplishment.â€
           <br />
-          <span className="text-[var(--text-muted)]">— Jim Rohn</span>
+          <span className="text-[var(--text-muted)]">â€” Jim Rohn</span>
         </div>
       </div>
           </div>
@@ -250,7 +250,7 @@ export default function Focus() {
             style={{ boxShadow: "var(--card-shadow)" }}
           >
             <h2 className="text-base sm:text-lg font-semibold text-[var(--text-primary)] mb-3 sm:mb-4">
-              Add to today's to-do list
+              Add to today&apos;s to-do list
             </h2>
             <form onSubmit={handleAddTask} className="space-y-3 sm:space-y-4">
               <div>
@@ -627,6 +627,7 @@ function SummaryCard({ title, value, highlight }) {
     </div>
   );
 }
+
 
 
 
