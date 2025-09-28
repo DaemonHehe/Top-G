@@ -2,23 +2,7 @@ import { NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { requireAuth } from "../../lib/api-utils";
 import { getExerciseById, findExerciseIdByLabel } from "../../lib/exercises";
-
-export const sanitizeLift = (lift) => {
-  if (!lift) return null;
-  return {
-    id: lift._id?.toString(),
-    _id: lift._id?.toString(),
-    exerciseId: lift.exerciseId ?? null,
-    exercise: lift.exercise,
-    weight: lift.weight,
-    reps: lift.reps,
-    notes: lift.notes,
-    date: lift.date,
-    recordedAt: lift.recordedAt instanceof Date ? lift.recordedAt.toISOString() : lift.recordedAt,
-    createdAt: lift.createdAt instanceof Date ? lift.createdAt.toISOString() : lift.createdAt,
-    updatedAt: lift.updatedAt instanceof Date ? lift.updatedAt.toISOString() : lift.updatedAt,
-  };
-};
+import { sanitizeLift } from "./utils";
 
 export async function GET(request) {
   const auth = await requireAuth(request);
@@ -119,6 +103,7 @@ export async function POST(request) {
     return NextResponse.json({ message: "Internal server error" }, { status: 500 });
   }
 }
+
 
 
 

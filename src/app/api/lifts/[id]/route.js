@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { requireAuth } from "../../../lib/api-utils";
-import { sanitizeLift } from "../route";
+import { sanitizeLift } from "../utils";
 import { getExerciseById, findExerciseIdByLabel } from "../../../lib/exercises";
 
 const parseObjectId = (value) => {
@@ -195,5 +195,6 @@ export async function PUT(request, context) {
     return NextResponse.json({ message: "Internal server error" }, { status: 500 });
   }
 }
+
 
 
