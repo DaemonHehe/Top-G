@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import NavigationBar from "../../components/navigation-bar";
 import { BIG_FOUR_EXERCISES, getExerciseById, findExerciseIdByLabel } from "../../lib/exercises";
 import { useRouter } from "next/navigation";
@@ -18,7 +19,6 @@ const STATUS_BADGE_CLASSES = {
   failed: "bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger-text)]",
 };
 
-const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const COMPACT_WEEKDAY_LABELS = ["Mon", "", "Wed", "", "Fri", "", "Sun"];
 
 
@@ -184,17 +184,17 @@ export default function Profile() {
     };
 
     load();
-  }, []);
+  }, [syncTimezone, fetchTasks, fetchLifts]);
 
-  const getBrowserTimeZone = () => {
+  const getBrowserTimeZone = useCallback(() => {
     try {
       return Intl.DateTimeFormat().resolvedOptions().timeZone || "";
     } catch {
       return "";
     }
-  };
+  }, []);
 
-  const syncTimezone = async () => {
+  const syncTimezone = useCallback(async () => {
     try {
       const res = await fetch("/api/users", { credentials: "include" });
       if (!res.ok) return;
@@ -227,9 +227,9 @@ export default function Profile() {
     } catch (e) {
       console.warn("Timezone sync skipped:", e);
     }
-  };
+  }, [getBrowserTimeZone]);
 
-  const fetchTasks = async () => {
+  const fetchTasks = useCallback(async () => {
     try {
       const response = await fetch("/api/tasks", {
         credentials: "include",
@@ -243,9 +243,9 @@ export default function Profile() {
     } catch (error) {
       console.error("Error fetching tasks:", error);
     }
-  };
+  }, []);
 
-  const fetchLifts = async () => {
+  const fetchLifts = useCallback(async () => {
     try {
       const response = await fetch("/api/lifts", {
         credentials: "include",
@@ -260,7 +260,7 @@ export default function Profile() {
       console.error("Error fetching lifts:", error);
       setLiftsError("Unable to load lifts. Strength analytics may be stale.");
     }
-  };
+  }, []);
 
   const analytics = useMemo(() => {
     const counts = { total: 0, completed: 0, pending: 0, failed: 0 };
@@ -809,7 +809,7 @@ export default function Profile() {
             <div className="flex items-start gap-4">
               <div className="relative h-20 w-20 flex items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] text-2xl font-semibold text-[var(--text-primary)]">
                 {avatarPreview ? (
-                  <img src={avatarPreview} alt="Profile avatar" className="h-full w-full rounded-2xl object-cover" />
+                  <Image src={avatarPreview} alt="Profile avatar" fill sizes="80px" className="rounded-2xl object-cover" unoptimized />
                 ) : (
                   <span>{profileInitials}</span>
                 )}
@@ -900,7 +900,7 @@ export default function Profile() {
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
                     <div className="relative h-16 w-16 flex items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] text-lg font-semibold text-[var(--text-primary)]">
                       {avatarPreview ? (
-                        <img src={avatarPreview} alt="Avatar preview" className="h-full w-full rounded-2xl object-cover" />
+                        <Image src={avatarPreview} alt="Avatar preview" fill sizes="64px" className="rounded-2xl object-cover" unoptimized />
                       ) : (
                         <span>{profileInitials}</span>
                       )}

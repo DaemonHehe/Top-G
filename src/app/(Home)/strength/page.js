@@ -39,8 +39,6 @@ const normaliseEntry = (entry) => {
   };
 };
 
-const plateauThreshold = 2.5;
-const plateauWindow = 3;
 
 const formatWeekRange = (weekStartIso, weekEndIso) => {
   if (!weekStartIso) return "Week";
@@ -113,8 +111,6 @@ export default function Strength() {
   const [collapsed, setCollapsed] = useState({}); // { [label]: boolean }
   const router = useRouter();
 
-  const [weeklySummary, setWeeklySummary] = useState([]);
-  const [weeklyMeta, setWeeklyMeta] = useState({ window: plateauWindow, threshold: plateauThreshold });
   const [weeklyLoading, setWeeklyLoading] = useState(true);
   const [weeklyError, setWeeklyError] = useState("");
   const [overallTrendWeeks, setOverallTrendWeeks] = useState([]);
@@ -157,22 +153,15 @@ export default function Strength() {
         if (!isMounted) {
           return;
         }
-        const exercises = Array.isArray(payload?.exercises) ? payload.exercises : [];
         const overall = payload?.overall || null;
         const overallWeeks = Array.isArray(overall?.weeks) ? overall.weeks.filter(Boolean) : [];
-        setWeeklySummary(exercises);
         setOverallTrendWeeks(overallWeeks);
         setOverallPlateau(overall?.plateau ?? null);
-        setWeeklyMeta({
-          window: typeof payload?.window === "number" ? payload.window : plateauWindow,
-          threshold: typeof payload?.threshold === "number" ? payload.threshold : plateauThreshold,
-        });
         setWeeklyError("");
       } catch (error) {
         console.error("Unable to load weekly lifts:", error);
         if (isMounted) {
           setWeeklyError("Weekly trend unavailable. We'll try again soon.");
-          setWeeklySummary([]);
           setOverallTrendWeeks([]);
           setOverallPlateau(null);
         }
@@ -247,50 +236,6 @@ export default function Strength() {
     return { labels, groups };
   }, [entries, filterExercise]);
 
-  const weeklyInsights = useMemo(() => {
-    if (!Array.isArray(weeklySummary) || weeklySummary.length === 0) {
-      return { plateaus: [], recent: [] };
-    }
-
-    const plateaus = weeklySummary
-      .filter((item) => item?.plateau?.isPlateau)
-      .map((item) => {
-        const weeks = Array.isArray(item.weeks) ? item.weeks : [];
-        const recent = weeks.slice(-plateauWindow);
-        return {
-          exerciseLabel: item.exerciseLabel,
-          stagnantWeeks: item.plateau?.stagnantWeeks ?? 0,
-          recent,
-          latest: recent[recent.length - 1] || null,
-        };
-      });
-
-    const recent = weeklySummary
-      .map((item) => {
-        const weeks = Array.isArray(item.weeks) ? item.weeks : [];
-        const latest = weeks[weeks.length - 1] || null;
-        const previous = weeks[weeks.length - 2] || null;
-        const latestWeight = latest ? Number(latest.topWeight || 0) : null;
-        const previousWeight = previous ? Number(previous.topWeight || 0) : null;
-        const delta =
-          latestWeight !== null && previousWeight !== null
-            ? Number((latestWeight - previousWeight).toFixed(2))
-            : null;
-        return {
-          exerciseLabel: item.exerciseLabel,
-          latest,
-          delta,
-        };
-      })
-      .sort((a, b) => {
-        const aTime = a.latest?.weekStartIso ? new Date(a.latest.weekStartIso).getTime() : 0;
-        const bTime = b.latest?.weekStartIso ? new Date(b.latest.weekStartIso).getTime() : 0;
-        return bTime - aTime;
-      });
-
-    return { plateaus, recent };
-  }, [weeklySummary]);
-
   const overallTrend = useMemo(() => {
     const weeks = Array.isArray(overallTrendWeeks) ? overallTrendWeeks.filter(Boolean) : [];
     if (weeks.length === 0) {
@@ -342,48 +287,6 @@ export default function Strength() {
       plateau: overallPlateau || null,
     };
   }, [overallTrendWeeks, overallPlateau]);
-
-  const trendExercises = useMemo(() => {
-    if (!Array.isArray(weeklySummary) || weeklySummary.length === 0) {
-      return [];
-    }
-
-    return weeklySummary
-      .map((item) => {
-        const weeks = Array.isArray(item.weeks) ? item.weeks.filter(Boolean) : [];
-        if (weeks.length === 0) return null;
-        const recentWeeks = weeks.slice(-6);
-        const values = recentWeeks.map((week) => Number(week.topWeight || 0));
-        if (!values.some((value) => value > 0)) {
-          return null;
-        }
-        const sparkline = buildSparklinePoints(values);
-        const latest = recentWeeks[recentWeeks.length - 1] || null;
-        const previous = recentWeeks[recentWeeks.length - 2] || null;
-        const latestWeight = latest ? Number(latest.topWeight || 0) : null;
-        const previousWeight = previous ? Number(previous?.topWeight || 0) : null;
-        const delta =
-          latestWeight !== null && previousWeight !== null
-            ? Number((latestWeight - previousWeight).toFixed(2))
-            : null;
-        return {
-          exerciseLabel: item.exerciseLabel,
-          weeks: recentWeeks,
-          values,
-          sparkline,
-          latest,
-          latestWeight,
-          delta,
-          startLabel: recentWeeks[0]
-            ? formatWeekRange(recentWeeks[0].weekStartIso, recentWeeks[0].weekEndIso)
-            : "",
-          endLabel: latest ? formatWeekRange(latest.weekStartIso, latest.weekEndIso) : "",
-        };
-      })
-      .filter(Boolean)
-      .sort((a, b) => Number(b.latestWeight || 0) - Number(a.latestWeight || 0))
-      .slice(0, 3);
-  }, [weeklySummary]);
 
   const allExerciseLabels = useMemo(() => {
     const set = new Set(entries.map((e) => e.exerciseLabel || "Unknown"));
@@ -862,6 +765,9 @@ export default function Strength() {
     </div>
   );
 }
+
+
+
 
 
 

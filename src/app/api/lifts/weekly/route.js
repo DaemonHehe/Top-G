@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { requireAuth } from "../../../lib/api-utils";
 import { getExerciseById, findExerciseIdByLabel } from "../../../lib/exercises";
@@ -214,7 +214,7 @@ function computeWeeklySummary(lifts) {
     exerciseSummaries.push({
       exerciseId: group.exerciseId,
       exerciseLabel: group.exerciseLabel,
-      weeks: weeks.map(({ weekStart, weekEnd, ...rest }) => rest),
+      weeks: weeks.map(({ weekStart, weekEnd, ...rest }) => { void weekStart; void weekEnd; return rest; }),
       plateau,
     });
   }
@@ -297,4 +297,6 @@ export async function GET(request) {
     return NextResponse.json({ message: "Internal server error" }, { status: 500 });
   }
 }
+
+
 

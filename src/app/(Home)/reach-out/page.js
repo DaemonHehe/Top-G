@@ -96,7 +96,7 @@ export default function ReachOut() {
             Feedback & Questions
           </span>
           <h1 className="mt-4 text-3xl font-bold text-[var(--text-primary)]">
-            We'd love to hear from you
+            We&apos;d love to hear from you
           </h1>
           <p className="mt-3 text-[var(--text-secondary)]">
             Share your thoughts, report an issue, or tell us how we can improve. Your feedback helps us build a better experience.
@@ -133,7 +133,7 @@ export default function ReachOut() {
         <section className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-8" style={{ boxShadow: "var(--card-shadow)" }}>
           <h2 className="text-xl font-semibold text-[var(--text-primary)]">Send Us Your Feedback</h2>
           <p className="mt-3 text-sm text-[var(--text-secondary)]">
-            Fill out the form and we'll respond as soon as possible.
+            Fill out the form and we&apos;ll respond as soon as possible.
           </p>
           <form className="mt-6 space-y-4" onSubmit={handleFeedbackSubmit} noValidate>
             <div>

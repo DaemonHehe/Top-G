@@ -7,7 +7,7 @@ export async function POST(request) {
   let payload;
   try {
     payload = await request.json();
-  } catch (error) {
+  } catch {
     return NextResponse.json({ message: "Invalid JSON body" }, { status: 400 });
   }
 
@@ -52,3 +52,5 @@ export async function POST(request) {
     return NextResponse.json({ message: "We couldn't record your feedback. Try again later." }, { status: 500 });
   }
 }
+
+
