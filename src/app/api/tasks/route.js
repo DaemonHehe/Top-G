@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { requireAuth } from "../../lib/api-utils";
+import { serializeTask } from "./utils";
 
 export function serializeTask(task) {
   if (!task) return null;
@@ -158,3 +159,4 @@ export async function POST(request) {
     return NextResponse.json({ message: "Internal server error" }, { status: 500 });
   }
 }
+

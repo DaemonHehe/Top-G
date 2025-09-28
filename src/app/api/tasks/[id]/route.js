@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { requireAuth } from "../../../lib/api-utils";
-import { serializeTask } from "../route";
+import { serializeTask } from "../utils";
 
 function parseObjectId(id) {
   if (!ObjectId.isValid(id)) {
@@ -182,3 +182,4 @@ export async function DELETE(request, context) {
     return NextResponse.json({ message: "Internal server error" }, { status: 500 });
   }
 }
+
