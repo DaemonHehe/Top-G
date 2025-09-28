@@ -193,7 +193,7 @@ export default function Home() {
                   <span className="text-[var(--danger)]">{quoteError}</span>
                 )}
                 {quoteStatus === "success" && quote && (
-                  <blockquote className="text-pretty italic text-[var(--text-primary)]">"{quote}"</blockquote>
+                  <blockquote className="text-pretty italic text-[var(--text-primary)]">&ldquo;{quote}&rdquo;</blockquote>
                 )}
               </div>
               <button
@@ -282,5 +282,6 @@ function ConversationBubble({ role, text }) {
     </div>
   );
 }
+
 
 
