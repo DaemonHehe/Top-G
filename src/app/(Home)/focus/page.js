@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import NavigationBar from "../../components/navigation-bar";
-import { useRouter } from "next/navigation";
 
 const STATUS_LABELS = {
   pending: "Pending",
@@ -39,7 +38,6 @@ export default function Focus() {
   const [newTask, setNewTask] = useState({ title: "", description: "", type: "daily", dueDate: "" });
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
-  const router = useRouter();
   const todayLabel = useMemo(() => formatDate(new Date()), []);
 
   useEffect(() => {
@@ -164,16 +162,6 @@ export default function Focus() {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-      router.replace("/login");
-      router.refresh();
-    } catch (error) {
-      console.error("Logout error:", error);
-    }
-  };
-
   const grouped = useMemo(() => {
     return tasks.reduce(
       (acc, rawTask) => {
@@ -215,7 +203,7 @@ export default function Focus() {
 
   return (
     <div className="min-h-screen bg-[var(--background-muted)]">
-      <NavigationBar onLogout={handleLogout} />
+      <NavigationBar />
       <div className="bg-[var(--surface)] shadow-sm">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-4 sm:gap-5 py-5 sm:py-6 sm:flex-row sm:items-center sm:justify-between">

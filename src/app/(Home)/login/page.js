@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { Eye, EyeOff } from "lucide-react";
 
 export default function Login() {
@@ -63,9 +64,12 @@ export default function Login() {
         style={{ boxShadow: "var(--card-shadow)" }}
       >
         <div className="mb-8 text-center">
+          <span className="relative mx-auto mb-4 flex h-14 w-14 items-center justify-center overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface-muted)]">
+            <Image src="/Top-G-logo.png" alt="Top G" fill sizes="56px" className="object-contain" />
+          </span>
           <span className="theme-badge inline-block">Welcome back</span>
           <h1 className="mt-4 text-3xl font-semibold text-[var(--text-primary)]">
-            Sign in to Daily Task Tracker
+            Sign in to Top G
           </h1>
           <p className="mt-3 text-sm text-[var(--text-secondary)]">
             Organise your day, monitor progress, and celebrate wins.
@@ -148,3 +152,7 @@ export default function Login() {
     </div>
   );
 }
+
+
+
+

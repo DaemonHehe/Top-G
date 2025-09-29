@@ -5,7 +5,6 @@ import Link from "next/link";
 import Image from "next/image";
 import NavigationBar from "../../components/navigation-bar";
 import { BIG_FOUR_EXERCISES, getExerciseById, findExerciseIdByLabel } from "../../lib/exercises";
-import { useRouter } from "next/navigation";
 
 const STATUS_LABELS = {
   pending: "Pending",
@@ -20,7 +19,6 @@ const STATUS_BADGE_CLASSES = {
 };
 
 const COMPACT_WEEKDAY_LABELS = ["Mon", "", "Wed", "", "Fri", "", "Sun"];
-
 
 const CONTRIBUTION_LEVEL_STYLES = [
   { backgroundColor: "var(--surface-muted)", borderColor: "var(--border)", opacity: 1 },
@@ -174,18 +172,6 @@ export default function Profile() {
     return "text-[var(--text-muted)]";
   };
 
-  const router = useRouter();
-
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      await Promise.allSettled([syncTimezone(), fetchTasks(), fetchLifts()]);
-      setLoading(false);
-    };
-
-    load();
-  }, [syncTimezone, fetchTasks, fetchLifts]);
-
   const getBrowserTimeZone = useCallback(() => {
     try {
       return Intl.DateTimeFormat().resolvedOptions().timeZone || "";
@@ -261,6 +247,15 @@ export default function Profile() {
       setLiftsError("Unable to load lifts. Strength analytics may be stale.");
     }
   }, []);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      await Promise.allSettled([syncTimezone(), fetchTasks(), fetchLifts()]);
+      setLoading(false);
+    };
+    load();
+  }, [syncTimezone, fetchTasks, fetchLifts]);
 
   const analytics = useMemo(() => {
     const counts = { total: 0, completed: 0, pending: 0, failed: 0 };
@@ -778,17 +773,6 @@ export default function Profile() {
     };
   }, [avatarPreview]);
 
-
-  const handleLogout = async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-      router.replace("/login");
-      router.refresh();
-    } catch (error) {
-      console.error("Logout error:", error);
-    }
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-[var(--background-muted)] flex items-center justify-center">
@@ -802,7 +786,7 @@ export default function Profile() {
 
   return (
     <div className="min-h-screen bg-[var(--background-muted)]">
-      <NavigationBar onLogout={handleLogout} />
+      <NavigationBar />
       <main className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-8 sm:space-y-10">
         <header className="bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-6 sm:p-8" style={{ boxShadow: "var(--card-shadow)" }}>
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
@@ -1412,7 +1396,6 @@ function ContributionHeatmap({ data = [], loading }) {
   );
 }
 
-
 function formatContributionLabel(day) {
   if (!day?.date) {
     return "No milestones recorded.";
@@ -1519,12 +1502,4 @@ function ContributionLegend() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
 

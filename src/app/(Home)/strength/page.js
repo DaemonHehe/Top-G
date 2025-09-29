@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import NavigationBar from "../../components/navigation-bar";
-import { useRouter } from "next/navigation";
 import { EXERCISE_GROUPS, getExerciseById, findExerciseIdByLabel } from "../../lib/exercises";
 
 const CUSTOM_EXERCISE_ID = "custom";
@@ -109,7 +108,6 @@ export default function Strength() {
   const [syncMessage, setSyncMessage] = useState("");
   const [filterExercise, setFilterExercise] = useState("");
   const [collapsed, setCollapsed] = useState({}); // { [label]: boolean }
-  const router = useRouter();
 
   const [weeklyLoading, setWeeklyLoading] = useState(true);
   const [weeklyError, setWeeklyError] = useState("");
@@ -432,16 +430,6 @@ export default function Strength() {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-      router.replace("/login");
-      router.refresh();
-    } catch (error) {
-      console.error("Logout error:", error);
-    }
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-[var(--background-muted)] flex items-center justify-center">
@@ -455,7 +443,7 @@ export default function Strength() {
 
   return (
     <div className="min-h-screen bg-[var(--background-muted)]">
-      <NavigationBar onLogout={handleLogout} />
+      <NavigationBar />
       <main className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-8 sm:space-y-10">
         <header className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 sm:p-8" style={{ boxShadow: "var(--card-shadow)" }}>
           <div className="flex flex-col gap-4 sm:gap-6 md:flex-row md:items-center md:justify-between">

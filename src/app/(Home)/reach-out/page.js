@@ -12,13 +12,13 @@ const CONTACT_METHODS = [
   },
   {
     label: "LinkedIn",
-    value: "linkedin.com/in/topg-founder",
-    href: "https://linkedin.com/in/topg-founder",
+    value: "-",
+    href: "",
   },
   {
     label: "Twitter",
-    value: "@topgproductivity",
-    href: "https://twitter.com/topgproductivity",
+    value: "-",
+    href: "",
   },
 ];
 
@@ -199,3 +199,5 @@ export default function ReachOut() {
     </div>
   );
 }
+
+

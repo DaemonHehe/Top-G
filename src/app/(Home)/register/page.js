@@ -36,7 +36,7 @@ export default function Register() {
       const data = await response.json();
 
       if (response.ok) {
-        router.replace("/profile");
+        router.replace("/dashboard");
         router.refresh();
       } else {
         setError(data.message || "Registration failed");
@@ -69,7 +69,7 @@ export default function Register() {
               Build rituals that keep you unstoppable
             </h2>
             <p className="mt-4 leading-relaxed">
-              Craft tasks, review achievements, and make confident progress with a workspace designed for clarity.
+              Craft tasks, review achievements, and make confident progress with a dashboard designed for clarity.
             </p>
           </div>
           <div className="mt-12 space-y-4 text-sm">
@@ -91,7 +91,7 @@ export default function Register() {
         <div className="flex flex-col justify-center p-10">
           <div className="mb-8">
             <h1 className="text-3xl font-semibold text-[var(--text-primary)]">
-              Get started -- your productivity HQ awaits
+              Get started—your productivity HQ awaits
             </h1>
             <p className="mt-2 text-sm text-[var(--text-secondary)]">
               Sign up in seconds to plan smarter and track every win.
@@ -159,7 +159,7 @@ export default function Register() {
                 minLength={6}
                 placeholder="At least 6 characters"
               />
-              
+              <p className="text-xs text-[var(--text-muted)]">Minimum 6 characters, mix letters & numbers for stronger security.</p>
             </div>
 
             <button type="submit" className="btn-primary w-full" disabled={loading}>

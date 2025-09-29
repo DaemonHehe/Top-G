@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
+import NavigationBar from "../components/navigation-bar";
 
 function sanitizeQuote(text) {
   if (typeof text !== "string") return "";
@@ -169,6 +170,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[var(--background-muted)] text-[var(--text-primary)]">
+      <NavigationBar />
       <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 pb-16 pt-12 sm:px-6 lg:px-10">
         <header className="flex flex-col items-center gap-4 text-center sm:items-start sm:gap-5 sm:text-left">
           <p className="text-xs uppercase tracking-[0.4em] text-[var(--text-muted)] sm:text-sm sm:tracking-[0.6em]">{dayStamp}</p>
@@ -208,34 +210,65 @@ export default function Home() {
 
           <section className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] px-4 py-8 shadow-sm sm:px-7 lg:px-10 lg:py-10">
             <div className="flex flex-col gap-6 sm:gap-8">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                <div className="space-y-1">
-                  <p className="text-xs uppercase tracking-[0.35em] text-[var(--text-muted)] sm:text-sm">Coach console</p>
-                  <h2 className="text-2xl font-semibold sm:text-3xl">Direct orders, no fluff</h2>
-                  <p className="max-w-xl text-sm text-[var(--text-secondary)] sm:text-base">
-                    Drop the objective. The coach answers with pure execution tactics.
-                  </p>
+              {/* --- Top Header stays the same --- */}
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--text-muted)] sm:text-sm">
+                      Top G Relay
+                    </p>
+                    <h2 className="text-2xl font-semibold sm:text-3xl">Direct orders, zero fluff</h2>
+                  </div>
                 </div>
-                {coachStatus === "loading" && (
-                  <span className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--accent)]">Routing?</span>
-                )}
+                <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.35em]">
+                  {coachStatus === "loading" ? (
+                    <span className="text-[var(--accent)]">Engaging . . .</span>
+                  ) : (
+                    <span className="text-[var(--text-muted)]">Live</span>
+                  )}
+                </div>
               </div>
 
+              {/* --- Main area now styled like chat --- */}
               <div className="flex flex-col gap-6 lg:flex-row lg:gap-8">
-                <div className="flex-1 space-y-4 rounded-3xl border border-[var(--border)] bg-[var(--surface-muted)] p-4 sm:p-5">
-                  <div className="max-h-[320px] space-y-4 overflow-y-auto pr-1 sm:max-h-[360px]">
-                    {conversation.map((entry, index) => (
-                      <ConversationBubble key={`${entry.role}-${index}`} role={entry.role} text={entry.text} />
-                    ))}
+                <div className="flex-1 flex flex-col rounded-3xl border border-[var(--border)] bg-[var(--surface-muted)] p-4 sm:p-5">
+                  <div className="flex-1 max-h-[320px] sm:max-h-[360px] overflow-y-auto pr-1 space-y-4">
+                    {conversation.map((entry, index) => {
+                      const isUser = entry.role === "user";
+                      return (
+                        <div
+                          key={`${entry.role}-${index}`}
+                          className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+                        >
+                          <div
+                            className={`max-w-[70%] rounded-2xl px-4 py-2 text-sm leading-relaxed
+                              ${
+                                isUser
+                                  ? "bg-[var(--accent)] text-white rounded-br-none"
+                                  : "bg-[var(--surface)] text-[var(--text)] rounded-bl-none"
+                              }`}
+                          >
+                            {entry.text}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
+
                   {coachStatus === "error" && (
-                    <p className="text-sm text-[var(--danger)]">Connection dipped. The last command still stands.</p>
+                    <p className="mt-2 text-sm text-[var(--danger)]">
+                      Connection dipped. The last command still stands.
+                    </p>
                   )}
                 </div>
 
+                {/* --- Input area stays inside the right panel --- */}
                 <form onSubmit={handleCoachSubmit} className="w-full space-y-4 lg:w-[360px]">
                   <div className="space-y-2">
-                    <label htmlFor="coach-prompt" className="text-xs font-semibold uppercase tracking-[0.25em] text-[var(--text-muted)]">
+                    <label
+                      htmlFor="coach-prompt"
+                      className="text-xs font-semibold uppercase tracking-[0.25em] text-[var(--text-muted)]"
+                    >
                       Speak
                     </label>
                     <textarea
@@ -244,15 +277,18 @@ export default function Home() {
                       onChange={(event) => setPrompt(event.target.value)}
                       placeholder="Tell me what needs to happen next..."
                       rows={4}
-                      className="w-full resize-none rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-3 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                      className="w-full resize-none rounded-2xl border border-[var(--border)]
+                                bg-[var(--surface-muted)] px-4 py-3 text-sm leading-relaxed
+                                focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                     />
                   </div>
                   <button
                     type="submit"
-                    className="w-full rounded-2xl bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[var(--accent)]/90 disabled:cursor-wait disabled:opacity-70"
+                    className="w-full rounded-2xl bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-white
+                              transition hover:bg-[var(--accent)]/90 disabled:cursor-wait disabled:opacity-70"
                     disabled={coachStatus === "loading"}
                   >
-                    {coachStatus === "loading" ? "Routing..." : "Send orders"}
+                    {coachStatus === "loading" ? "Engaging . . ." : "Send orders"}
                   </button>
                 </form>
               </div>

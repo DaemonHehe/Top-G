@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+Live preview: [top-g-rust.vercel.app](https://top-g-rust.vercel.app/)
 
-## Getting Started
+Welcome to Top-G : Productivity Suite
 
-First, run the development server:
+Top-G is a focused productivity coach that helps you plan your day, track your lifts, and keep your momentum without distractions.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+🌟 What You Can Do
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+🏠 Dashboard
+Your personal command center.
+See today’s tasks, check progress, and keep all your wins in one place.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+🎯 Focus
+Enter Focus Mode to work without interruptions.
+Stay ruthless with your attention and finish what matters.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+💪 Strength Logging
+Record every set and rep—bench press, squat, deadlift, and more.
+Track progressive overload and spot plateaus in your training.
 
-## Learn More
+📈 Streaks & Velocity
+Watch your daily streaks and momentum.
+Celebrate wins and quickly see where you’re slipping.
 
-To learn more about Next.js, take a look at the following resources:
+🤝 Reach Out
+Connect or get in touch with the team when you need support or want to share feedback.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+🚀 How to Get Started
+Open the app: top-g-rust.vercel.app
+Create an account or sign in if you already have one.
+Add your tasks for today and start logging your lifts.
+Switch to Focus Mode when it’s time to work.
+Check your streaks at the end of the day and plan for tomorrow.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+That’s it—you’re ready to move the needle.
 
-## Deploy on Vercel
+💡 Tips for Best Results
+Keep your task list short and clear—focus on what truly matters.
+Log your strength training after every workout to track gains accurately.
+Check your streaks daily; consistency beats intensity.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+📬 Need Help?
+Questions or feedback?
+Use the Reach Out tab in the app or contact us via the support link on the site.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## 🚀 Tech Stack
+
+- [Next.js](https://nextjs.org/) – React framework for fast, scalable web apps.
+- [React](https://react.dev/) – UI library.
+- [Tailwind CSS](https://tailwindcss.com/) – Utility-first styling.
+- [Vercel](https://vercel.com/) – Zero-config deployment platform.
+
+## SMTP Email Setup
+
+To forward feedback submissions to your inbox, configure the following environment variables:
+
+- `SMTP_HOST` � SMTP server hostname (for example, `smtp.gmail.com`).
+- `SMTP_PORT` � SMTP port (usually `587` for STARTTLS or `465` for SSL).
+- `SMTP_USER` / `SMTP_PASS` � credentials or app password for the SMTP account.
+- `SMTP_SECURE` � set to `true` when using port 465, otherwise leave `false` for STARTTLS.
+- `FEEDBACK_FROM` � optional display identity for outgoing messages (defaults to `SMTP_USER`).
+- `FEEDBACK_TO` � address that should receive feedback notifications (defaults to `SMTP_USER`).
+
+Restart the dev server after updating `.env` so Next.js can pick up the new configuration.
+

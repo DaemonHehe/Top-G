@@ -52,7 +52,8 @@ export async function GET(request) {
         },
       );
 
-      // 2) For daily tasks: mark prior day's incomplete as failed, then reset to pending for the new day
+      // 2) For daily tasks: carry forward yesterday's results before opening a new cycle
+      const rolloverTimestamp = new Date();
       // Mark as failed if not completed
       await auth.db.collection("tasks").updateMany(
         {
@@ -61,14 +62,25 @@ export async function GET(request) {
           $or: [{ status: { $exists: false } }, { status: { $ne: "completed" } }],
         },
         {
-          $set: { status: "failed", completed: false, lastFailedDate: yesterdayISO, updatedAt: new Date() },
+          $set: {
+            status: "failed",
+            completed: false,
+            lastFailedDate: yesterdayISO,
+            updatedAt: rolloverTimestamp,
+          },
         },
       );
 
-      // Reset all daily tasks to pending for the new day
+      // Reset only completed daily tasks back to pending for the new day
       await auth.db.collection("tasks").updateMany(
-        { userId: userObjectId, type: "daily" },
-        { $set: { status: "pending", completed: false, updatedAt: new Date() } },
+        {
+          userId: userObjectId,
+          type: "daily",
+          status: "completed",
+        },
+        {
+          $set: { status: "pending", completed: false, updatedAt: rolloverTimestamp },
+        },
       );
 
       // Update user's last rollover date
@@ -139,3 +151,4 @@ export async function POST(request) {
     return NextResponse.json({ message: "Internal server error" }, { status: 500 });
   }
 }
+

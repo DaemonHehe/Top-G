@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import Image from "next/image";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
 const NAV_LINKS = [
@@ -12,9 +13,11 @@ const NAV_LINKS = [
   { href: "/profile", label: "Profile" },
 ];
 
-export default function NavigationBar({ onLogout }) {
+export default function NavigationBar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const isActive = (href) => {
     if (href === "/") {
@@ -30,20 +33,35 @@ export default function NavigationBar({ onLogout }) {
         : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
     }`;
 
-  const mobileLinkClass = (href) =>
-    `flex-1 rounded-lg border px-3 py-2 text-center text-sm transition-colors ${
-      isActive(href)
-        ? "border-[var(--accent)] text-[var(--accent)] font-semibold"
-        : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-    }`;
+  const handleLogout = async () => {
+    if (loggingOut) return;
+
+    setLoggingOut(true);
+    setOpen(false);
+
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+      router.replace("/login");
+      router.refresh();
+    } catch (error) {
+      console.error("Navigation logout error:", error);
+    } finally {
+      setLoggingOut(false);
+    }
+  };
 
   return (
     <header className="sticky top-0 z-40 bg-[var(--surface)]/90 backdrop-blur border-b border-[var(--border)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between gap-4">
-          <Link href="/" className="flex items-center gap-2 min-w-0">
-            <span className="text-lg font-semibold text-[var(--text-primary)] truncate">Top-G</span>
-            <span className="hidden text-sm text-[var(--text-secondary)] sm:inline">Productivity Suite</span>
+          <Link href="/" className="flex items-center gap-3 min-w-0">
+            <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-2xl bg-[var(--surface-muted)]">
+              <Image src="/Top-G-logo.png" alt="Top G" fill sizes="40px" priority className="object-contain" />
+            </span>
+            <div className="flex min-w-0 flex-col leading-tight">
+              <span className="text-base font-semibold text-[var(--text-primary)]">Top G</span>
+              <span className="text-xs text-[var(--text-secondary)]">Productivity Suite</span>
+            </div>
           </Link>
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-6">
@@ -66,14 +84,14 @@ export default function NavigationBar({ onLogout }) {
                 <path fillRule="evenodd" d="M3 5h14a1 1 0 110 2H3a1 1 0 110-2zm0 4h14a1 1 0 010 2H3a1 1 0 010-2zm0 4h14a1 1 0 110 2H3a1 1 0 110-2z" clipRule="evenodd" />
               </svg>
             </button>
-            {onLogout && (
-              <button
-                onClick={onLogout}
-                className="btn-secondary hidden text-sm font-medium transition-colors md:inline-flex"
-              >
-                Logout
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              className="btn-secondary hidden text-sm font-medium transition-colors md:inline-flex disabled:cursor-wait disabled:opacity-70"
+            >
+              {loggingOut ? "Logging out..." : "Logout"}
+            </button>
           </div>
         </div>
         {/* Mobile collapsible panel */}
@@ -89,22 +107,17 @@ export default function NavigationBar({ onLogout }) {
                 {link.label}
               </Link>
             ))}
-            {onLogout && (
-              <button
-                onClick={() => {
-                  setOpen(false);
-                  onLogout();
-                }}
-                className="rounded-xl border border-[var(--danger-border)] bg-[var(--danger-bg)] px-4 py-3 text-sm font-medium text-[var(--danger)] hover:bg-[var(--danger-hover)]"
-              >
-                Logout
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              className="rounded-xl border border-[var(--danger-border)] bg-[var(--danger-bg)] px-4 py-3 text-sm font-medium text-[var(--danger)] hover:bg-[var(--danger-hover)] disabled:cursor-wait disabled:opacity-70"
+            >
+              {loggingOut ? "Logging out..." : "Logout"}
+            </button>
           </nav>
         </div>
       </div>
     </header>
   );
 }
-
-
