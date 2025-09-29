@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import NavigationBar from "../components/navigation-bar";
@@ -300,24 +300,7 @@ export default function Home() {
   );
 }
 
-function ConversationBubble({ role, text }) {
-  const isCoach = role === "coach";
-  const alignment = isCoach ? "justify-start" : "justify-end";
-  const baseBubble = "max-w-full sm:max-w-[80%] rounded-3xl border px-5 py-4 text-sm leading-relaxed sm:text-base shadow-sm";
-  const coachStyles = "bg-[var(--surface)] border-[var(--border)] text-[var(--text-secondary)]";
-  const userStyles = "bg-[var(--accent)] border-[var(--accent)] text-white";
 
-  return (
-    <div className={`flex ${alignment}`}>
-      <div className={`${baseBubble} ${isCoach ? coachStyles : userStyles}`}>
-        <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.25em] ${isCoach ? "bg-[var(--surface-muted)] text-[var(--text-secondary)]" : "bg-white/20 text-white"}`}>
-          {isCoach ? "Coach" : "You"}
-        </span>
-        <p className="mt-3 whitespace-pre-wrap">{text}</p>
-      </div>
-    </div>
-  );
-}
 
 
 
