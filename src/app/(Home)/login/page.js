@@ -37,7 +37,7 @@ export default function Login() {
       const data = await response.json();
 
       if (response.ok) {
-        router.replace("/profile");
+        router.replace("/dashboard");
         router.refresh();
       } else {
         setError(data.message || "Login failed");

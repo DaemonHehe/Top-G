@@ -7,7 +7,7 @@ export function middleware(request) {
   const token = request.cookies.get("token")?.value;
   const hasToken = Boolean(token);
 
-  const isLegacyDashboard = pathname.startsWith("/dashboard");
+  const isDashboardRoute = pathname.startsWith("/dashboard");
   const isProfileRoute = pathname.startsWith("/profile");
   const isProtectedApi =
     pathname.startsWith("/api/tasks") ||
@@ -15,12 +15,7 @@ export function middleware(request) {
     pathname.startsWith("/api/lifts");
   const isAuthPage = AUTH_PAGES.has(pathname);
 
-  if (isLegacyDashboard) {
-    const targetPath = pathname.replace("/dashboard", "/profile");
-    return NextResponse.redirect(new URL(targetPath, request.url));
-  }
-
-  if ((isProfileRoute || isProtectedApi) && !hasToken) {
+  if ((isDashboardRoute || isProfileRoute || isProtectedApi) && !hasToken) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ message: "Authentication required" }, { status: 401 });
     }
@@ -29,7 +24,7 @@ export function middleware(request) {
   }
 
   if (isAuthPage && hasToken) {
-    return NextResponse.redirect(new URL("/profile", request.url));
+    return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
   return NextResponse.next();
@@ -46,3 +41,4 @@ export const config = {
     "/api/lifts/:path*",
   ],
 };
+
