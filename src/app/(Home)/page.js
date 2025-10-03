@@ -183,8 +183,8 @@ export default function Home() {
           </p>
         </header>
 
-        <main className="mt-14 flex-1 space-y-16">
-          <section className="relative isolate overflow-hidden rounded-3xl border border-[var(--border)] bg-gradient-to-br from-[var(--surface)] via-[var(--surface)] to-[var(--surface-muted)] px-6 py-10 text-center shadow-sm sm:px-10 lg:py-14">
+        <main className="mt-10 flex-1 space-y-12 sm:mt-14 sm:space-y-16">
+          <section className="relative isolate overflow-hidden rounded-3xl border border-[var(--border)] bg-gradient-to-br from-[var(--surface)] via-[var(--surface)] to-[var(--surface-muted)] px-5 py-8 text-center shadow-sm sm:px-10 sm:py-10 lg:py-14">
             <div className="mx-auto flex max-w-3xl flex-col items-center gap-6">
               <p className="text-xs uppercase tracking-[0.35em] text-[var(--text-muted)] sm:text-sm">Daily hit</p>
               <div className="text-balance text-2xl font-semibold leading-relaxed sm:text-3xl">
@@ -299,6 +299,7 @@ export default function Home() {
     </div>
   );
 }
+
 
 
 

@@ -91,7 +91,7 @@ export default function ReachOut() {
     <div className="min-h-screen bg-[var(--background-muted)]">
       <NavigationBar onLogout={handleLogout} />
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
-        <header className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-8" style={{ boxShadow: "var(--card-shadow)" }}>
+        <header className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 text-center sm:p-8 sm:text-left" style={{ boxShadow: "var(--card-shadow)" }}>
           <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
             Feedback & Questions
           </span>
@@ -103,7 +103,7 @@ export default function ReachOut() {
           </p>
         </header>
 
-        <section className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <section className="grid grid-cols-1 gap-6 sm:grid-cols-2">
           <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6" style={{ boxShadow: "var(--card-shadow)" }}>
             <h2 className="text-lg font-semibold text-[var(--text-primary)]">Ways to Reach Us</h2>
             <ul className="mt-4 space-y-4 text-sm text-[var(--text-secondary)]">
@@ -130,7 +130,7 @@ export default function ReachOut() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-8" style={{ boxShadow: "var(--card-shadow)" }}>
+        <section className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 text-center sm:p-8 sm:text-left" style={{ boxShadow: "var(--card-shadow)" }}>
           <h2 className="text-xl font-semibold text-[var(--text-primary)]">Send Us Your Feedback</h2>
           <p className="mt-3 text-sm text-[var(--text-secondary)]">
             Fill out the form and we&apos;ll respond as soon as possible.
@@ -180,7 +180,7 @@ export default function ReachOut() {
                 required
               />
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
               <button type="submit" className="btn-primary sm:w-auto" disabled={isSubmitting}>
                 {isSubmitting ? "Sending..." : "Send feedback"}
               </button>
@@ -199,5 +199,3 @@ export default function ReachOut() {
     </div>
   );
 }
-
-

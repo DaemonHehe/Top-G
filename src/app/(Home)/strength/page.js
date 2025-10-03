@@ -446,16 +446,16 @@ export default function Strength() {
       <NavigationBar />
       <main className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-8 sm:space-y-10">
         <header className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 sm:p-8" style={{ boxShadow: "var(--card-shadow)" }}>
-          <div className="flex flex-col gap-4 sm:gap-6 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col items-center gap-4 text-center sm:gap-6 md:flex-row md:items-center md:justify-between md:text-left">
             <div className="space-y-3">
               <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
                 Strength - Lift Journal
               </span>
               <h1 className="text-2xl sm:text-3xl font-bold text-[var(--text-primary)]">Strength Tracking Hub</h1>
               <p className="text-sm sm:text-base text-[var(--text-secondary)] max-w-xl italic">
-                “The pain you feel today will be the strength you feel tomorrow.”
+                "The pain you feel today will be the strength you feel tomorrow."
                 <br />
-                <span className="text-[var(--text-muted)]">— Arnold Schwarzenegger</span>
+                <span className="text-[var(--text-muted)]">-- Arnold Schwarzenegger</span>
               </p>
             </div>
             <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-3 sm:p-4 text-sm text-[var(--text-secondary)]">
@@ -469,7 +469,7 @@ export default function Strength() {
         </header>
 
         <section className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 sm:p-8" style={{ boxShadow: "var(--card-shadow)" }}>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
             <div>
               <h2 className="text-lg sm:text-xl font-semibold text-[var(--text-primary)]">Overall strength trend</h2>
               <p className="text-xs sm:text-sm text-[var(--text-secondary)]">Aggregated weekly volume across every logged lift.</p>
@@ -512,7 +512,7 @@ export default function Strength() {
                 </div>
                 <p className="mt-4 text-xs sm:text-sm text-[var(--text-secondary)]">Weekly volume sums every logged set. Keep stacking consistent weeks to accelerate progress.</p>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
                   <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Volume</p>
                   <p className="mt-1 text-lg font-semibold text-[var(--text-primary)]">
@@ -753,13 +753,3 @@ export default function Strength() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-

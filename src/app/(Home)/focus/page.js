@@ -206,7 +206,7 @@ export default function Focus() {
       <NavigationBar />
       <div className="bg-[var(--surface)] shadow-sm">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-4 sm:gap-5 py-5 sm:py-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col items-center gap-4 py-5 text-center sm:gap-5 sm:flex-row sm:items-center sm:justify-between sm:text-left">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-[var(--text-primary)]">
                 Focus Command Center
@@ -215,16 +215,16 @@ export default function Focus() {
                 Assign, track, and close the missions on your plate.
               </p>
             </div>
-            <div className="flex flex-col items-start gap-2 text-sm text-[var(--text-secondary)] sm:items-end">
+            <div className="flex flex-col items-center gap-2 text-sm text-[var(--text-secondary)] sm:items-end">
         {todayLabel && (
           <span className="text-base sm:text-lg font-medium text-[var(--text-primary)]">
-            Today â€“ {todayLabel}
+            Today - {todayLabel}
           </span>
         )}
-        <div className="mt-2 max-w-xs text-left sm:text-right italic text-[var(--text-primary)]">
-          â€œDiscipline is the bridge between goals and accomplishment.â€
+        <div className="mt-2 max-w-xs text-left sm:text-right text-sm italic text-[var(--text-secondary)]">
+          "Discipline is the bridge between goals and accomplishment."
           <br />
-          <span className="text-[var(--text-muted)]">â€” Jim Rohn</span>
+          <span className="text-[var(--text-muted)]">-- Jim Rohn</span>
         </div>
       </div>
           </div>
@@ -615,8 +615,3 @@ function SummaryCard({ title, value, highlight }) {
     </div>
   );
 }
-
-
-
-
-

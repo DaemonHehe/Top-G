@@ -789,8 +789,8 @@ export default function Profile() {
       <NavigationBar />
       <main className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-8 sm:space-y-10">
         <header className="bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-6 sm:p-8" style={{ boxShadow: "var(--card-shadow)" }}>
-          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-start gap-4">
+          <div className="flex flex-col items-center gap-6 text-center md:flex-row md:items-center md:justify-between md:text-left">
+            <div className="flex items-start gap-4 text-left">
               <div className="relative h-20 w-20 flex items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] text-2xl font-semibold text-[var(--text-primary)]">
                 {avatarPreview ? (
                   <Image src={avatarPreview} alt="Profile avatar" fill sizes="80px" className="rounded-2xl object-cover" unoptimized />
@@ -811,7 +811,7 @@ export default function Profile() {
                 )}
               </div>
             </div>
-            <div className="flex flex-col gap-2 items-start md:items-end text-sm text-[var(--text-secondary)]">
+            <div className="flex flex-col items-center gap-2 text-sm text-[var(--text-secondary)] md:items-end md:text-left">
               <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-2 font-semibold text-[var(--text-primary)]">
                 Completion rate
                 <span className="text-lg text-[var(--accent)] font-bold">{analytics.successRate}%</span>
@@ -1502,4 +1502,5 @@ function ContributionLegend() {
     </div>
   );
 }
+
 
