@@ -28,7 +28,7 @@ const INITIAL_COACH_MESSAGE = {
   text: "State the mission. I'll hand you the pressure plan.",
 };
 
-export default function Home() {
+export default function Dashboard() {
   const [user, setUser] = useState(null);
   const [quote, setQuote] = useState("");
   const [quoteStatus, setQuoteStatus] = useState("loading");
@@ -69,7 +69,7 @@ export default function Home() {
           setUser(payload?.user ?? null);
         }
       } catch (error) {
-        console.error("Home user fetch error:", error);
+        console.error("Dashboard user fetch error:", error);
         if (!cancelled) {
           setUser(null);
         }
@@ -210,7 +210,6 @@ export default function Home() {
 
           <section className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] px-4 py-8 shadow-sm sm:px-7 lg:px-10 lg:py-10">
             <div className="flex flex-col gap-6 sm:gap-8">
-              {/* --- Top Header stays the same --- */}
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
                   <div className="space-y-1">
@@ -229,7 +228,6 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* --- Main area now styled like chat --- */}
               <div className="flex flex-col gap-6 lg:flex-row lg:gap-8">
                 <div className="flex-1 flex flex-col rounded-3xl border border-[var(--border)] bg-[var(--surface-muted)] p-4 sm:p-5">
                   <div className="flex-1 max-h-[320px] sm:max-h-[360px] overflow-y-auto pr-1 space-y-4">
@@ -262,7 +260,6 @@ export default function Home() {
                   )}
                 </div>
 
-                {/* --- Input area stays inside the right panel --- */}
                 <form onSubmit={handleCoachSubmit} className="w-full space-y-4 lg:w-[360px]">
                   <div className="space-y-2">
                     <label
@@ -299,9 +296,3 @@ export default function Home() {
     </div>
   );
 }
-
-
-
-
-
-
