@@ -453,7 +453,7 @@ export default function Strength() {
               </span>
               <h1 className="text-2xl sm:text-3xl font-bold text-[var(--text-primary)]">Strength Tracking Hub</h1>
               <p className="text-sm sm:text-base text-[var(--text-secondary)] max-w-xl italic">
-                "The pain you feel today will be the strength you feel tomorrow."
+                &ldquo;The pain you feel today will be the strength you feel tomorrow.&rdquo;
                 <br />
                 <span className="text-[var(--text-muted)]">-- Arnold Schwarzenegger</span>
               </p>

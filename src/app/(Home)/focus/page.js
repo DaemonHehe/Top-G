@@ -222,7 +222,7 @@ export default function Focus() {
           </span>
         )}
         <div className="mt-2 max-w-xs text-left sm:text-right text-sm italic text-[var(--text-secondary)]">
-          "Discipline is the bridge between goals and accomplishment."
+          &ldquo;Discipline is the bridge between goals and accomplishment.&rdquo;
           <br />
           <span className="text-[var(--text-muted)]">-- Jim Rohn</span>
         </div>
