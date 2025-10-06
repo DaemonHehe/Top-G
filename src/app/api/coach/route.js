@@ -1,7 +1,7 @@
 
 import { NextResponse } from "next/server";
 
-const MODEL = "x-ai/grok-4-fast:free";
+const MODEL = "deepseek/deepseek-chat-v3.1:free";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 const SYSTEM_PROMPT = `You are an elite execution coach with the swagger and directness of Andrew Tate.
