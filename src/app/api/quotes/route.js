@@ -1,7 +1,14 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 
-const MODEL = "x-ai/grok-4-fast:free";
+const MODEL = "deepseek/deepseek-chat-v3.1:free";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const FALLBACK_QUOTES = [
+  "Discipline isn't painful; regret is, so pick the sting that makes you sharper.",
+  "You won't conquer the world by waiting your turn; step forward and take it.",
+  "Energy wasted on excuses could be burning your next victory.",
+  "Pressure is the tax you pay on ambition; if you can't afford it, stay average.",
+  "Momentum belongs to the man who starts now, not the one who plans forever.",
+];
 
 function buildPrompt(tone, summary) {
   const base = tone === "top-g"
@@ -10,11 +17,25 @@ function buildPrompt(tone, summary) {
   return `${base} Craft one short quote (max 240 characters) tailored to this user context: ${summary}`;
 }
 
+function pickFallbackQuote() {
+  const index = Math.floor(Math.random() * FALLBACK_QUOTES.length);
+  return FALLBACK_QUOTES[index];
+}
+
+function fallbackResponse(tone, reason) {
+  const quote = pickFallbackQuote();
+  return NextResponse.json(
+    { quote, tone, source: "fallback", reason },
+    { status: 200 },
+  );
+}
+
 export async function POST(request) {
   const apiKey = process.env.OPENROUTER_API_KEY;
 
   if (!apiKey) {
-    return NextResponse.json({ message: "OpenRouter API key is not configured." }, { status: 503 });
+    console.warn("Quotes API fallback: missing OPENROUTER_API_KEY");
+    return fallbackResponse("top-g", "missing-api-key");
   }
 
   let body;
@@ -69,19 +90,22 @@ export async function POST(request) {
     if (!response.ok) {
       const errorText = await response.text();
       console.error("OpenRouter error:", response.status, errorText);
-      return NextResponse.json({ message: "Quote generation failed." }, { status: 502 });
+      return fallbackResponse(tone, `upstream-${response.status}`);
     }
 
     const data = await response.json();
     const quote = data?.choices?.[0]?.message?.content?.trim();
 
     if (!quote) {
-      return NextResponse.json({ message: "No quote returned." }, { status: 502 });
+      return fallbackResponse(tone, "empty-upstream");
     }
 
-    return NextResponse.json({ quote, tone });
+    return NextResponse.json({ quote, tone, source: "openrouter" });
   } catch (error) {
     console.error("OpenRouter request error:", error);
-    return NextResponse.json({ message: "Unable to reach quote service." }, { status: 502 });
+    return fallbackResponse(tone, "fetch-error");
   }
 }
+
+
+
