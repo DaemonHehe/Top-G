@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { Eye, EyeOff } from "lucide-react";
+import GoogleLoginClient from "../../components/GoogleLoginClient";
 
 export default function Login() {
   const [formData, setFormData] = useState({
@@ -82,6 +83,11 @@ export default function Login() {
               </div>
 
               {error && <div className="theme-badge-danger mb-6 text-center lg:text-left">{error}</div>}
+
+              {/* Google Login Component */}
+              <div className="mb-8">
+                <GoogleLoginClient />
+              </div>
 
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="space-y-2">
