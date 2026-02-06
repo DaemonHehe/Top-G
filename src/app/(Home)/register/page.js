@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import { supabaseBrowser } from "../../lib/supabase-browser";
 
 const HIGHLIGHTS = [
   {
@@ -28,34 +29,35 @@ export default function Register() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const router = useRouter();
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     setLoading(true);
     setError("");
+    setNotice("");
 
     try {
-      const response = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const { data, error: authError } = await supabaseBrowser.auth.signUp({
+        email: formData.email.trim(),
+        password: formData.password,
+        options: {
+          data: {
+            name: formData.name.trim(),
+          },
         },
-        credentials: "include",
-        body: JSON.stringify({
-          name: formData.name.trim(),
-          email: formData.email.trim(),
-          password: formData.password,
-        }),
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        router.replace("/dashboard");
-        router.refresh();
+      if (!authError) {
+        if (data?.session) {
+          router.replace("/dashboard");
+          router.refresh();
+        } else {
+          setNotice("Check your email to confirm your account before signing in.");
+        }
       } else {
-        setError(data.message || "Registration failed");
+        setError(authError.message || "Registration failed");
       }
     } catch (registerError) {
       console.error("Registration request failed", registerError);
@@ -83,7 +85,7 @@ export default function Register() {
           Back to landing
         </Link>
 
-        <div className="w-full overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-xl">
+        <div className="w-full overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-xl animate-fade-up">
           <div className="flex flex-col lg:flex-row">
             <div className="order-2 flex-1 p-6 sm:p-10 lg:order-1 lg:p-12">
               <div className="mb-8 space-y-3 text-center lg:text-left">
@@ -97,6 +99,7 @@ export default function Register() {
               </div>
 
               {error && <div className="theme-badge-danger mb-6 text-center lg:text-left">{error}</div>}
+              {notice && <div className="theme-badge mb-6 text-center lg:text-left">{notice}</div>}
 
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="space-y-2">

@@ -28,7 +28,7 @@ export default function LandingPage() {
       <div className="absolute inset-x-4 bottom-0 -z-10 mx-auto h-72 max-w-5xl rounded-3xl bg-[var(--surface)]/80 blur-3xl" aria-hidden="true" />
 
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-6 pb-16 pt-12 sm:px-8 lg:px-10">
-        <header className="flex flex-col items-center gap-6 text-center sm:gap-8">
+        <header className="flex flex-col items-center gap-6 text-center sm:gap-8 animate-fade-up">
           <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-1 text-xs font-semibold uppercase tracking-[0.35em] text-[var(--text-secondary)]">
             Elite execution suite
           </span>
@@ -54,7 +54,7 @@ export default function LandingPage() {
           </p>
         </header>
 
-        <main className="mt-16 grid gap-8 sm:mt-20 sm:grid-cols-2 lg:grid-cols-3">
+        <main className="mt-16 grid gap-8 sm:mt-20 sm:grid-cols-2 lg:grid-cols-3 animate-fade-up">
           {FEATURES.map((feature) => (
             <article
               key={feature.title}
@@ -77,7 +77,7 @@ export default function LandingPage() {
           ))}
         </main>
 
-        <section className="mt-20 flex flex-col items-center gap-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] px-6 py-10 text-center sm:px-10 sm:text-left">
+        <section className="mt-20 flex flex-col items-center gap-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] px-6 py-10 text-center sm:px-10 sm:text-left animate-fade-up">
           <h2 className="text-2xl font-semibold text-[var(--text-primary)] sm:text-3xl">
             Built for disciplined operators
           </h2>

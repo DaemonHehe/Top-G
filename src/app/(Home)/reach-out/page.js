@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import NavigationBar from "../../components/navigation-bar";
-import { useRouter } from "next/navigation";
 
 const CONTACT_METHODS = [
   {
@@ -23,19 +22,8 @@ const CONTACT_METHODS = [
 ];
 
 export default function ReachOut() {
-  const router = useRouter();
   const [feedbackForm, setFeedbackForm] = useState({ name: "", email: "", message: "" });
   const [feedbackStatus, setFeedbackStatus] = useState({ state: "idle", message: "" });
-
-  const handleLogout = async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-      router.replace("/login");
-      router.refresh();
-    } catch (error) {
-      console.error("Logout error:", error);
-    }
-  };
 
   const handleFeedbackChange = (field) => (event) => {
     const value = event.target.value;
@@ -88,8 +76,8 @@ export default function ReachOut() {
   const isSubmitting = feedbackStatus.state === "loading";
 
   return (
-    <div className="min-h-screen bg-[var(--background-muted)]">
-      <NavigationBar onLogout={handleLogout} />
+    <div className="min-h-screen bg-[var(--background-muted)] animate-fade-up">
+      <NavigationBar />
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
         <header className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 text-center sm:p-8 sm:text-left" style={{ boxShadow: "var(--card-shadow)" }}>
           <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">

@@ -3,12 +3,14 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { supabaseBrowser } from "../lib/supabase-browser";
 
 const NAV_LINKS = [
   { href: "/dashboard", label: "Home" },
   { href: "/focus", label: "Focus" },
   { href: "/strength", label: "Strength" },
+  { href: "/protocols", label: "Protocols" },
   { href: "/reach-out", label: "Reach Out" },
   { href: "/profile", label: "Profile" },
 ];
@@ -18,6 +20,29 @@ export default function NavigationBar() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [isAuthed, setIsAuthed] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    supabaseBrowser.auth.getSession().then(({ data, error }) => {
+      if (!mounted) return;
+      if (error) {
+        console.warn("Session check failed:", error);
+      }
+      setIsAuthed(Boolean(data?.session));
+    });
+
+    const { data: sub } = supabaseBrowser.auth.onAuthStateChange((_event, session) => {
+      if (mounted) {
+        setIsAuthed(Boolean(session));
+      }
+    });
+
+    return () => {
+      mounted = false;
+      sub?.subscription?.unsubscribe();
+    };
+  }, []);
 
   const isActive = (href) => {
     if (href === "/") {
@@ -27,10 +52,10 @@ export default function NavigationBar() {
   };
 
   const desktopLinkClass = (href) =>
-    `text-sm font-medium transition-colors ${
+    `text-sm font-medium transition-colors px-3 py-1.5 rounded-full ${
       isActive(href)
-        ? "text-[var(--text-primary)]"
-        : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+        ? "text-[var(--text-primary)] bg-[var(--surface-subtle)] border border-[var(--border)]"
+        : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-subtle)]"
     }`;
 
   const handleLogout = async () => {
@@ -40,7 +65,7 @@ export default function NavigationBar() {
     setOpen(false);
 
     try {
-      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+      await supabaseBrowser.auth.signOut();
       router.replace("/login");
       router.refresh();
     } catch (error) {
@@ -54,7 +79,7 @@ export default function NavigationBar() {
     <header className="sticky top-0 z-40 bg-[var(--surface)]/90 backdrop-blur border-b border-[var(--border)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between gap-4">
-          <Link href="/" className="flex items-center gap-3 min-w-0">
+          <Link href={isAuthed ? "/dashboard" : "/"} className="flex items-center gap-3 min-w-0">
             <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-2xl bg-[var(--surface-muted)]">
               <Image src="/Top-G-logo.png" alt="Top G" fill sizes="40px" priority className="object-contain" />
             </span>
@@ -64,9 +89,14 @@ export default function NavigationBar() {
             </div>
           </Link>
           {/* Desktop nav */}
-          <nav className="hidden md:flex items-center gap-6">
+          <nav className="hidden md:flex items-center gap-3">
             {NAV_LINKS.map((link) => (
-              <Link key={link.href} href={link.href} className={desktopLinkClass(link.href)}>
+              <Link
+                key={link.href}
+                href={link.href}
+                className={desktopLinkClass(link.href)}
+                aria-current={isActive(link.href) ? "page" : undefined}
+              >
                 {link.label}
               </Link>
             ))}
@@ -103,6 +133,7 @@ export default function NavigationBar() {
                 href={link.href}
                 className={`rounded-xl px-4 py-3 text-sm ${isActive(link.href) ? "bg-[var(--surface-muted)] text-[var(--text-primary)]" : "bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border)]"}`}
                 onClick={() => setOpen(false)}
+                aria-current={isActive(link.href) ? "page" : undefined}
               >
                 {link.label}
               </Link>

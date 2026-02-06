@@ -1,6 +1,6 @@
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 6;
-const MAX_AVATAR_LENGTH = 2_000_000;
+const MAX_AVATAR_URL_LENGTH = 2048;
 
 export function validateEmail(email) {
   return EMAIL_REGEX.test(email ?? "");
@@ -72,14 +72,15 @@ export function validateUserUpdate(payload = {}) {
     }
   }
 
-  if (payload.avatar !== undefined) {
-    const avatar = typeof payload.avatar === "string" ? payload.avatar.trim() : "";
+  if (payload.avatar !== undefined || payload.avatarUrl !== undefined) {
+    const avatarRaw = payload.avatarUrl ?? payload.avatar;
+    const avatar = typeof avatarRaw === "string" ? avatarRaw.trim() : "";
     if (!avatar) {
-      errors.avatar = "Avatar cannot be empty";
-    } else if (!avatar.startsWith("data:image/")) {
-      errors.avatar = "Avatar must be a base64 encoded image.";
-    } else if (avatar.length > MAX_AVATAR_LENGTH) {
-      errors.avatar = "Avatar image is too large";
+      data.avatar = null;
+    } else if (!/^https?:\/\//i.test(avatar)) {
+      errors.avatar = "Avatar must be a valid URL.";
+    } else if (avatar.length > MAX_AVATAR_URL_LENGTH) {
+      errors.avatar = "Avatar URL is too long.";
     } else {
       data.avatar = avatar;
     }

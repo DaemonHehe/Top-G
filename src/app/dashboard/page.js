@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import NavigationBar from "../components/navigation-bar";
+import { fetchWithAuth } from "../lib/supabase-browser";
 
 function sanitizeQuote(text) {
   if (typeof text !== "string") return "";
@@ -27,6 +28,28 @@ const INITIAL_COACH_MESSAGE = {
   role: "coach",
   text: "State the mission. I'll hand you the pressure plan.",
 };
+
+const RANKS = [
+  { name: "Initiate", min: 0, max: 499 },
+  { name: "Hustler", min: 500, max: 1499 },
+  { name: "Operator", min: 1500, max: 3499 },
+  { name: "Kingpin", min: 3500, max: 6999 },
+  { name: "Top-G", min: 7000, max: Infinity },
+];
+
+function getRankProgress(totalXp = 0) {
+  const xp = Math.max(0, Number(totalXp) || 0);
+  const current = RANKS.find((rank) => xp >= rank.min && xp <= rank.max) ?? RANKS[0];
+  const currentIndex = RANKS.findIndex((rank) => rank.name === current.name);
+  const next = RANKS[currentIndex + 1] ?? null;
+  if (!next) {
+    return { current, next: null, progress: 100, remaining: 0, span: current.max - current.min };
+  }
+  const span = next.min - current.min;
+  const progress = Math.min(100, Math.round(((xp - current.min) / span) * 100));
+  const remaining = Math.max(0, next.min - xp);
+  return { current, next, progress, remaining, span };
+}
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
@@ -59,7 +82,7 @@ export default function Dashboard() {
 
     const fetchUser = async () => {
       try {
-        const response = await fetch("/api/users", { credentials: "include" });
+        const response = await fetchWithAuth("/api/users");
         if (!response.ok) {
           if (!cancelled) setUser(null);
           return;
@@ -89,7 +112,7 @@ export default function Dashboard() {
     setQuoteStatus("loading");
     setQuoteError("");
     try {
-      const response = await fetch("/api/quotes", {
+      const response = await fetchWithAuth("/api/quotes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -139,7 +162,7 @@ export default function Dashboard() {
     setCoachStatus("loading");
 
     try {
-      const response = await fetch("/api/coach", {
+      const response = await fetchWithAuth("/api/coach", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -167,11 +190,15 @@ export default function Dashboard() {
   };
 
   const displayName = user?.name ? `, ${user.name}` : "";
+  const totalXp = Number(user?.totalXp ?? 0);
+  const currentRank = user?.currentRank || "Initiate";
+  const currentStreak = Number(user?.currentStreak ?? 0);
+  const rankProgress = useMemo(() => getRankProgress(totalXp), [totalXp]);
 
   return (
     <div className="min-h-screen bg-[var(--background-muted)] text-[var(--text-primary)]">
       <NavigationBar />
-      <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 pb-16 pt-12 sm:px-6 lg:px-10">
+      <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 pb-16 pt-12 sm:px-6 lg:px-10 animate-fade-up">
         <header className="flex flex-col items-center gap-4 text-center sm:items-start sm:gap-5 sm:text-left">
           <p className="text-xs uppercase tracking-[0.4em] text-[var(--text-muted)] sm:text-sm sm:tracking-[0.6em]">{dayStamp}</p>
           <h1 className="text-balance text-3xl font-bold sm:text-4xl lg:text-5xl">
@@ -184,6 +211,50 @@ export default function Dashboard() {
         </header>
 
         <main className="mt-10 flex-1 space-y-12 sm:mt-14 sm:space-y-16">
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <DashboardStat
+              label="Total XP"
+              value={totalXp.toLocaleString()}
+              accent="var(--accent)"
+            />
+            <DashboardStat
+              label="Current rank"
+              value={currentRank}
+              accent="var(--text-primary)"
+            />
+            <DashboardStat
+              label="Current streak"
+              value={`${currentStreak} day${currentStreak === 1 ? "" : "s"}`}
+              accent="var(--warning-text)"
+            />
+          </section>
+
+          <section className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--text-muted)]">Rank progress</p>
+                <p className="text-lg font-semibold text-[var(--text-primary)]">
+                  {rankProgress.current.name}
+                  {rankProgress.next ? ` → ${rankProgress.next.name}` : " (Max rank)"}
+                </p>
+              </div>
+              <div className="text-sm text-[var(--text-secondary)]">
+                {rankProgress.next
+                  ? `${rankProgress.remaining.toLocaleString()} XP to next rank`
+                  : "You are at the peak."}
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
+                <span>{totalXp.toLocaleString()} XP</span>
+                <span>{rankProgress.next ? `${rankProgress.next.min.toLocaleString()} XP` : "Max"}</span>
+              </div>
+              <div className="mt-2 h-2 w-full rounded-full bg-[var(--surface-muted)]">
+                <div className="h-2 rounded-full bg-[var(--accent)]" style={{ width: `${rankProgress.progress}%` }} />
+              </div>
+            </div>
+          </section>
+
           <section className="relative isolate overflow-hidden rounded-3xl border border-[var(--border)] bg-gradient-to-br from-[var(--surface)] via-[var(--surface)] to-[var(--surface-muted)] px-5 py-8 text-center shadow-sm sm:px-10 sm:py-10 lg:py-14">
             <div className="mx-auto flex max-w-3xl flex-col items-center gap-6">
               <p className="text-xs uppercase tracking-[0.35em] text-[var(--text-muted)] sm:text-sm">Daily hit</p>
@@ -230,7 +301,7 @@ export default function Dashboard() {
 
               <div className="flex flex-col gap-6 lg:flex-row lg:gap-8">
                 <div className="flex-1 flex flex-col rounded-3xl border border-[var(--border)] bg-[var(--surface-muted)] p-4 sm:p-5">
-                  <div className="flex-1 max-h-[320px] sm:max-h-[360px] overflow-y-auto pr-1 space-y-4">
+                  <div className="flex-1 max-h-[360px] sm:max-h-[420px] overflow-y-auto pr-1 space-y-3">
                     {conversation.map((entry, index) => {
                       const isUser = entry.role === "user";
                       return (
@@ -239,11 +310,11 @@ export default function Dashboard() {
                           className={`flex ${isUser ? "justify-end" : "justify-start"}`}
                         >
                           <div
-                            className={`max-w-[70%] rounded-2xl px-4 py-2 text-sm leading-relaxed
+                            className={`max-w-[78%] rounded-3xl px-4 py-2 text-sm leading-relaxed shadow-sm
                               ${
                                 isUser
-                                  ? "bg-[var(--accent)] text-white rounded-br-none"
-                                  : "bg-[var(--surface)] text-[var(--text)] rounded-bl-none"
+                                  ? "bg-[var(--accent)] text-white rounded-br-lg rounded-bl-3xl rounded-tr-3xl"
+                                  : "bg-[var(--surface)] text-[var(--text-primary)] rounded-bl-lg rounded-br-3xl rounded-tr-3xl"
                               }`}
                           >
                             {entry.text}
@@ -268,16 +339,16 @@ export default function Dashboard() {
                     >
                       Speak
                     </label>
-                    <textarea
-                      id="coach-prompt"
-                      value={prompt}
-                      onChange={(event) => setPrompt(event.target.value)}
-                      placeholder="Tell me what needs to happen next..."
-                      rows={4}
-                      className="w-full resize-none rounded-2xl border border-[var(--border)]
-                                bg-[var(--surface-muted)] px-4 py-3 text-sm leading-relaxed
-                                focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-                    />
+                    <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 transition focus-within:bg-[var(--surface)]">
+                      <textarea
+                        id="coach-prompt"
+                        value={prompt}
+                        onChange={(event) => setPrompt(event.target.value)}
+                        placeholder="Type your message..."
+                        rows={1}
+                        className="w-full resize-none bg-transparent text-sm leading-relaxed text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
+                      />
+                    </div>
                   </div>
                   <button
                     type="submit"
@@ -293,6 +364,17 @@ export default function Dashboard() {
           </section>
         </main>
       </div>
+    </div>
+  );
+}
+
+function DashboardStat({ label, value, accent }) {
+  return (
+    <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[var(--text-muted)]">{label}</p>
+      <p className="mt-3 text-2xl font-semibold" style={{ color: accent }}>
+        {value}
+      </p>
     </div>
   );
 }

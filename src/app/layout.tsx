@@ -1,23 +1,38 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Sora, Fraunces } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "./components/theme-provider";
 import { ThemeToggle } from "./components/theme-toggle";
+import { PwaRegister } from "./components/pwa-register";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const sora = Sora({
+  variable: "--font-ui",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const fraunces = Fraunces({
+  variable: "--font-display",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
   title: "Top-G",
   description: "Productivity Suite",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Top-G",
+  },
+  icons: {
+    icon: "/topg-logo.svg",
+    apple: "/Top-G-logo.png",
+  },
+};
+
+export const viewport = {
+  themeColor: "#ef4444",
 };
 
 type RootLayoutProps = Readonly<{
@@ -28,7 +43,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${sora.variable} ${fraunces.variable} antialiased`}
         suppressHydrationWarning
       >
         <ThemeProvider>
@@ -41,6 +56,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
             {children}
           </div>
         </ThemeProvider>
+        <PwaRegister />
       </body>
     </html>
   );

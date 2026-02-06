@@ -1,23 +1,15 @@
 import { NextResponse } from "next/server";
-import { ObjectId } from "mongodb";
 import { requireAuth } from "../../../lib/api-utils";
 import { sanitizeLift } from "../utils";
 import { getExerciseById, findExerciseIdByLabel } from "../../../lib/exercises";
 
-const parseObjectId = (value) => {
-  if (!ObjectId.isValid(value)) {
+const parseLiftId = (value) => {
+  if (typeof value !== "string") {
     return null;
   }
-  return new ObjectId(value);
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
 };
-
-function unwrapResult(document) {
-  if (!document) return null;
-  if (typeof document === "object" && "value" in document) {
-    return document.value;
-  }
-  return document;
-}
 
 export async function GET(request, context) {
   const params = (await context.params) ?? {};
@@ -27,16 +19,22 @@ export async function GET(request, context) {
     return auth.error;
   }
 
-  const liftId = parseObjectId(params.id);
+  const liftId = parseLiftId(params.id);
   if (!liftId) {
     return NextResponse.json({ message: "Invalid lift id" }, { status: 400 });
   }
 
   try {
-    const lift = await auth.db.collection("lifts").findOne({
-      _id: liftId,
-      userId: new ObjectId(auth.userId),
-    });
+    const { data: lift, error } = await auth.supabase
+      .from("lifts")
+      .select("*")
+      .eq("id", liftId)
+      .eq("user_id", auth.userId)
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
 
     if (!lift) {
       return NextResponse.json({ message: "Lift not found" }, { status: 404 });
@@ -57,19 +55,24 @@ export async function DELETE(request, context) {
     return auth.error;
   }
 
-  const liftId = parseObjectId(params.id);
+  const liftId = parseLiftId(params.id);
   if (!liftId) {
     return NextResponse.json({ message: "Invalid lift id" }, { status: 400 });
   }
 
   try {
-    const userObjectId = new ObjectId(auth.userId);
-    const result = await auth.db.collection("lifts").deleteOne({
-      _id: liftId,
-      userId: userObjectId,
-    });
+    const { data, error } = await auth.supabase
+      .from("lifts")
+      .delete()
+      .eq("id", liftId)
+      .eq("user_id", auth.userId)
+      .select("id");
 
-    if (result.deletedCount === 0) {
+    if (error) {
+      throw error;
+    }
+
+    if (!data || data.length === 0) {
       return NextResponse.json({ message: "Lift not found" }, { status: 404 });
     }
 
@@ -88,7 +91,7 @@ export async function PUT(request, context) {
     return auth.error;
   }
 
-  const liftId = parseObjectId(params.id);
+  const liftId = parseLiftId(params.id);
   if (!liftId) {
     return NextResponse.json({ message: "Invalid lift id" }, { status: 400 });
   }
@@ -100,7 +103,7 @@ export async function PUT(request, context) {
     body = {};
   }
 
-  const update = { updatedAt: new Date() };
+  const update = { updated_at: new Date().toISOString() };
   let hasUpdates = false;
 
   if (body.exerciseId !== undefined) {
@@ -110,10 +113,10 @@ export async function PUT(request, context) {
       if (!canonical) {
         return NextResponse.json({ message: "Unknown exercise selection" }, { status: 400 });
       }
-      update.exerciseId = canonical.id;
+      update.exercise_id = canonical.id;
       update.exercise = canonical.label;
     } else {
-      update.exerciseId = null;
+      update.exercise_id = null;
     }
     hasUpdates = true;
   }
@@ -126,7 +129,7 @@ export async function PUT(request, context) {
     const inferredId = findExerciseIdByLabel(exercise);
     if (inferredId) {
       const canonical = getExerciseById(inferredId);
-      update.exerciseId = inferredId;
+      update.exercise_id = inferredId;
       update.exercise = canonical?.label ?? exercise;
     } else {
       update.exercise = exercise;
@@ -167,7 +170,7 @@ export async function PUT(request, context) {
     if (Number.isNaN(recordedAt.getTime())) {
       return NextResponse.json({ message: "Invalid recordedAt value" }, { status: 400 });
     }
-    update.recordedAt = recordedAt;
+    update.recorded_at = recordedAt.toISOString();
     hasUpdates = true;
   }
 
@@ -176,14 +179,17 @@ export async function PUT(request, context) {
   }
 
   try {
-    const userObjectId = new ObjectId(auth.userId);
-    const result = await auth.db.collection("lifts").findOneAndUpdate(
-      { _id: liftId, userId: userObjectId },
-      { $set: update },
-      { returnDocument: "after" }
-    );
+    const { data: updated, error } = await auth.supabase
+      .from("lifts")
+      .update(update)
+      .eq("id", liftId)
+      .eq("user_id", auth.userId)
+      .select("*")
+      .maybeSingle();
 
-    const updated = unwrapResult(result);
+    if (error) {
+      throw error;
+    }
 
     if (!updated) {
       return NextResponse.json({ message: "Lift not found" }, { status: 404 });
@@ -195,6 +201,3 @@ export async function PUT(request, context) {
     return NextResponse.json({ message: "Internal server error" }, { status: 500 });
   }
 }
-
-
-

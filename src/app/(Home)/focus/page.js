@@ -1,7 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import NavigationBar from "../../components/navigation-bar";
+import { fetchWithAuth } from "../../lib/supabase-browser";
 
 const STATUS_LABELS = {
   pending: "Pending",
@@ -10,9 +11,12 @@ const STATUS_LABELS = {
 };
 
 const STATUS_BADGE_CLASSES = {
-  pending: "bg-[var(--neutral-bg)] border border-[var(--neutral-border)] text-[var(--neutral-text)]",
-  completed: "bg-[var(--success-bg)] border border-[var(--success-border)] text-[var(--success-text)]",
-  failed: "bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger-text)]",
+  pending:
+    "bg-[var(--neutral-bg)] border border-[var(--neutral-border)] text-[var(--neutral-text)]",
+  completed:
+    "bg-[var(--success-bg)] border border-[var(--success-border)] text-[var(--success-text)]",
+  failed:
+    "bg-[var(--danger-bg)] border border-[var(--danger-border)] text-[var(--danger-text)]",
 };
 
 const STATUS_ORDER = ["pending", "completed", "failed"];
@@ -33,22 +37,47 @@ const formatDate = (value) => {
 };
 
 export default function Focus() {
+  const [user, setUser] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [newTask, setNewTask] = useState({ title: "", description: "", type: "daily", dueDate: "" });
+  const [newTask, setNewTask] = useState({
+    title: "",
+    description: "",
+    type: "daily",
+    dueDate: "",
+  });
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
+  const [timerMinutes, setTimerMinutes] = useState(25);
+  const [timerRemaining, setTimerRemaining] = useState(25 * 60);
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [timerConfigured, setTimerConfigured] = useState(false);
+  const [timerNotice, setTimerNotice] = useState({ type: "idle", text: "" });
+  const [bonusStatus, setBonusStatus] = useState({ type: "idle", text: "" });
+  const [claimingBonus, setClaimingBonus] = useState(false);
   const todayLabel = useMemo(() => formatDate(new Date()), []);
 
   useEffect(() => {
     fetchTasks();
   }, []);
 
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const response = await fetchWithAuth("/api/users");
+        if (!response.ok) return;
+        const payload = await response.json();
+        setUser(payload?.user ?? null);
+      } catch (error) {
+        console.error("Focus user fetch error:", error);
+      }
+    };
+    loadUser();
+  }, []);
+
   const fetchTasks = async () => {
     try {
-      const response = await fetch("/api/tasks", {
-        credentials: "include",
-      });
+      const response = await fetchWithAuth("/api/tasks");
       if (response.ok) {
         const data = await response.json();
         setTasks(data.map(normaliseTask));
@@ -78,8 +107,7 @@ export default function Focus() {
         payload.dueDate = newTask.dueDate;
       }
 
-      const response = await fetch("/api/tasks", {
-        credentials: "include",
+      const response = await fetchWithAuth("/api/tasks", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -101,8 +129,7 @@ export default function Focus() {
 
   const handleUpdateTask = async (taskId, updates) => {
     try {
-      const response = await fetch(`/api/tasks/${taskId}`, {
-        credentials: "include",
+      const response = await fetchWithAuth(`/api/tasks/${taskId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -117,7 +144,9 @@ export default function Focus() {
       }
 
       setTasks((prev) =>
-        prev.map((task) => (task._id === taskId ? normaliseTask(updatedTask) : task))
+        prev.map((task) =>
+          task._id === taskId ? normaliseTask(updatedTask) : task,
+        ),
       );
       setEditingTask(null);
       return updatedTask;
@@ -132,9 +161,13 @@ export default function Focus() {
     setTasks((current) =>
       current.map((task) =>
         task._id === taskId
-          ? normaliseTask({ ...task, status, completed: status === "completed" })
-          : task
-      )
+          ? normaliseTask({
+              ...task,
+              status,
+              completed: status === "completed",
+            })
+          : task,
+      ),
     );
 
     try {
@@ -149,8 +182,7 @@ export default function Focus() {
     if (!confirm("Are you sure you want to delete this task?")) return;
 
     try {
-      const response = await fetch(`/api/tasks/${taskId}`, {
-        credentials: "include",
+      const response = await fetchWithAuth(`/api/tasks/${taskId}`, {
         method: "DELETE",
       });
 
@@ -161,6 +193,133 @@ export default function Focus() {
       console.error("Error deleting task:", error);
     }
   };
+
+  const logFocusSession = useCallback(
+    async (minutes, { source = "manual" } = {}) => {
+      try {
+        const response = await fetchWithAuth("/api/gamification", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            actionType: "focus_session",
+            minutes,
+          }),
+        });
+
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          throw new Error(payload?.message || "Unable to log focus session.");
+        }
+
+        setTimerNotice({ type: "idle", text: "" });
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Unable to log focus session.";
+        if (source === "timer") {
+          setTimerNotice({ type: "error", text: message });
+        }
+      } finally {
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!timerRunning) return;
+    if (timerRemaining <= 0) return;
+
+    const interval = setInterval(() => {
+      setTimerRemaining((prev) => Math.max(0, prev - 1));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [timerRunning, timerRemaining]);
+
+  useEffect(() => {
+    if (!timerRunning || timerRemaining > 0) return;
+    setTimerRunning(false);
+    const minutes = Math.max(1, Math.round(timerMinutes));
+    logFocusSession(minutes, { source: "timer" });
+    setTimerConfigured(false);
+    setTimerRemaining(Math.round(minutes * 60));
+  }, [timerRunning, timerRemaining, timerMinutes, logFocusSession]);
+
+  const handleTimerStart = () => {
+    const minutes = Number(timerMinutes);
+    if (!Number.isFinite(minutes) || minutes <= 0) {
+      setTimerNotice({ type: "error", text: "Set a valid timer duration." });
+      return;
+    }
+    setTimerNotice({ type: "idle", text: "" });
+    setTimerRemaining(Math.round(minutes * 60));
+    setTimerConfigured(true);
+    setTimerRunning(true);
+  };
+
+  const handleTimerPause = () => {
+    setTimerRunning(false);
+  };
+
+  const handleTimerFinish = async () => {
+    if (!timerConfigured) return;
+    setTimerRunning(false);
+    const totalSeconds = Math.max(0, Math.round(Number(timerMinutes) * 60));
+    const elapsedSeconds = Math.max(0, totalSeconds - timerRemaining);
+    const minutesToLog = Math.max(1, Math.round(elapsedSeconds / 60));
+    await logFocusSession(minutesToLog, { source: "timer" });
+    setTimerConfigured(false);
+    setTimerRemaining(totalSeconds);
+  };
+
+  const handleClaimWeeklyBonus = async () => {
+    if (claimingBonus) return;
+    setClaimingBonus(true);
+    setBonusStatus({ type: "idle", text: "" });
+
+    try {
+      const response = await fetchWithAuth("/api/gamification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actionType: "streak_weekly_bonus" }),
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.message || "Unable to claim bonus.");
+      }
+
+      if (payload?.user) {
+        setUser(payload.user);
+      }
+
+      if (payload?.applied) {
+        setBonusStatus({
+          type: "success",
+          text: "Weekly bonus claimed. +100 XP secured.",
+        });
+      } else {
+        setBonusStatus({
+          type: "info",
+          text: payload?.message || "Weekly bonus not available yet.",
+        });
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to claim bonus.";
+      setBonusStatus({ type: "error", text: message });
+    } finally {
+      setClaimingBonus(false);
+    }
+  };
+
+  const bonusProgress = Math.min(Number(user?.currentStreak ?? 0), 7);
+  const bonusReady = bonusProgress >= 7;
+  const bonusNextLabel = user?.lastStreakBonusAt
+    ? `Next claim ${new Date(new Date(user.lastStreakBonusAt).getTime() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+    : "Ready after 7-day streak";
 
   const grouped = useMemo(() => {
     return tasks.reduce(
@@ -179,7 +338,7 @@ export default function Focus() {
           completed: [],
           failed: [],
         },
-      }
+      },
     );
   }, [tasks]);
 
@@ -188,21 +347,25 @@ export default function Focus() {
     return Math.round((grouped.counts.completed / grouped.counts.total) * 100);
   }, [grouped.counts.completed, grouped.counts.total]);
 
-  const sections = STATUS_ORDER.filter((status) => grouped.byStatus[status].length > 0);
+  const sections = STATUS_ORDER.filter(
+    (status) => grouped.byStatus[status].length > 0,
+  );
 
   if (loading) {
     return (
       <div className="min-h-screen bg-[var(--background-muted)] flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--accent)] mx-auto"></div>
-          <p className="mt-4 text-[var(--text-secondary)]">Loading your daily plan...</p>
+          <p className="mt-4 text-[var(--text-secondary)]">
+            Loading your daily plan...
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background-muted)]">
+    <div className="min-h-screen bg-[var(--background-muted)] animate-fade-up">
       <NavigationBar />
       <div className="bg-[var(--surface)] shadow-sm">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
@@ -216,17 +379,18 @@ export default function Focus() {
               </p>
             </div>
             <div className="flex flex-col items-center gap-2 text-sm text-[var(--text-secondary)] sm:items-end">
-        {todayLabel && (
-          <span className="text-base sm:text-lg font-medium text-[var(--text-primary)]">
-            Today - {todayLabel}
-          </span>
-        )}
-        <div className="mt-2 max-w-xs text-left sm:text-right text-sm italic text-[var(--text-secondary)]">
-          &ldquo;Discipline is the bridge between goals and accomplishment.&rdquo;
-          <br />
-          <span className="text-[var(--text-muted)]">-- Jim Rohn</span>
-        </div>
-      </div>
+              {todayLabel && (
+                <span className="text-base sm:text-lg font-medium text-[var(--text-primary)]">
+                  Today - {todayLabel}
+                </span>
+              )}
+              <div className="mt-2 max-w-xs text-left sm:text-right text-sm italic text-[var(--text-secondary)]">
+                &ldquo;Discipline is the bridge between goals and
+                accomplishment.&rdquo;
+                <br />
+                <span className="text-[var(--text-muted)]">-- Jim Rohn</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -268,10 +432,14 @@ export default function Focus() {
               </div>
               <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="text-sm font-medium text-[var(--text-secondary)]">Task type</label>
+                  <label className="text-sm font-medium text-[var(--text-secondary)]">
+                    Task type
+                  </label>
                   <select
                     value={newTask.type}
-                    onChange={(e) => setNewTask((prev) => ({ ...prev, type: e.target.value }))}
+                    onChange={(e) =>
+                      setNewTask((prev) => ({ ...prev, type: e.target.value }))
+                    }
                     className="mt-1 w-full"
                   >
                     <option value="daily">Daily</option>
@@ -280,11 +448,18 @@ export default function Focus() {
                 </div>
                 {newTask.type === "special" && (
                   <div>
-                    <label className="text-sm font-medium text-[var(--text-secondary)]">Due date</label>
+                    <label className="text-sm font-medium text-[var(--text-secondary)]">
+                      Due date
+                    </label>
                     <input
                       type="date"
                       value={newTask.dueDate}
-                      onChange={(e) => setNewTask((prev) => ({ ...prev, dueDate: e.target.value }))}
+                      onChange={(e) =>
+                        setNewTask((prev) => ({
+                          ...prev,
+                          dueDate: e.target.value,
+                        }))
+                      }
                       className="mt-1 w-full"
                     />
                   </div>
@@ -298,6 +473,137 @@ export default function Focus() {
                 {isAddingTask ? "Logging..." : "Add task to the battle plan"}
               </button>
             </form>
+          </div>
+        </section>
+
+        <section className="mb-10">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.35em] text-[var(--text-muted)]">
+                Focus timer
+              </p>
+              <h2 className="mt-2 text-2xl sm:text-3xl font-bold text-[var(--text-primary)]">
+                Stay locked in
+              </h2>
+              <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                Run a countdown and auto-log XP when you finish.
+              </p>
+            </div>
+          </div>
+
+          <div
+            className="mt-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] px-5 py-7 text-[var(--text-primary)]"
+            style={{ boxShadow: "var(--card-shadow)" }}
+          >
+            {!timerConfigured ? (
+              <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+                <div className="flex flex-col items-center gap-2 sm:items-start">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      min="1"
+                      max="180"
+                      value={timerMinutes}
+                      onChange={(event) => {
+                        const nextValue = Number(event.target.value);
+                        setTimerMinutes(nextValue);
+                        if (!timerRunning) {
+                          setTimerRemaining(Math.round(nextValue * 60));
+                        }
+                      }}
+                      className="w-28"
+                    />
+                    <span className="text-xs uppercase tracking-[0.3em] text-[var(--text-muted)]">min</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={handleTimerStart}
+                >
+                  Start timer
+                </button>
+              </div>
+            ) : (
+              <>
+                <FlipTimer remaining={timerRemaining} />
+                <div className="mt-6 flex flex-wrap justify-center gap-2">
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={handleTimerPause}
+                    disabled={!timerRunning}
+                  >
+                    Pause
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={handleTimerFinish}
+                  >
+                    Finish
+                  </button>
+                </div>
+              </>
+            )}
+
+            {timerNotice.text && (
+              <p
+                className={`mt-3 text-xs ${
+                  timerNotice.type === "error"
+                    ? "text-[var(--danger)]"
+                    : timerNotice.type === "success"
+                      ? "text-[var(--success-text)]"
+                      : "text-[var(--text-muted)]"
+                }`}
+              >
+                {timerNotice.text}
+              </p>
+            )}
+          </div>
+        </section>
+
+        <section className="mb-10">
+          <div
+            className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-6 sm:p-8"
+            style={{ boxShadow: "var(--card-shadow)" }}
+          >
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-base sm:text-lg font-semibold text-[var(--text-primary)]">
+                  Weekly bonus
+                </h2>
+                <p className="text-sm text-[var(--text-secondary)]">
+                  {bonusReady
+                    ? "Claim +100 XP for keeping your 7-day streak alive."
+                    : `Progress: ${bonusProgress}/7 days.`}
+                </p>
+                <p className="mt-1 text-xs text-[var(--text-muted)]">
+                  {bonusReady ? "Bonus ready now." : bonusNextLabel}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleClaimWeeklyBonus}
+                disabled={claimingBonus || !bonusReady}
+                className="btn-primary w-full sm:w-auto"
+              >
+                {claimingBonus ? "Claiming..." : "Claim weekly bonus"}
+              </button>
+            </div>
+            {bonusStatus.text && (
+              <p
+                className={`mt-3 text-xs ${
+                  bonusStatus.type === "error"
+                    ? "text-[var(--danger)]"
+                    : bonusStatus.type === "success"
+                      ? "text-[var(--success-text)]"
+                      : "text-[var(--text-muted)]"
+                }`}
+              >
+                {bonusStatus.text}
+              </p>
+            )}
           </div>
         </section>
 
@@ -337,10 +643,10 @@ export default function Focus() {
                 {grouped.counts.total === 0
                   ? "Log tasks above to start tracking the day."
                   : grouped.counts.completed === grouped.counts.total
-                  ? "Full sweep. Every task cleared. Keep the streak alive."
-                  : grouped.counts.failed > 0
-                  ? "Review failed items, capture lessons, and convert them into tomorrow's momentum."
-                  : "Solid progress. Finish the pending items or log them before sign-off."}
+                    ? "Full sweep. Every task cleared. Keep the streak alive."
+                    : grouped.counts.failed > 0
+                      ? "Review failed items, capture lessons, and convert them into tomorrow's momentum."
+                      : "Solid progress. Finish the pending items or log them before sign-off."}
               </p>
             </div>
             <div className="rounded-full bg-[var(--surface-subtle)] px-5 py-2 text-center text-sm font-semibold text-[var(--accent)]">
@@ -460,6 +766,8 @@ function TaskItem({
   const isEditing = editingTask === task._id;
   const isCompleted = status === "completed";
   const isFailed = status === "failed";
+  const isProtocol = task.type === "protocol";
+  const isSmart = Boolean(task.isSmart);
 
   return (
     <div
@@ -467,8 +775,8 @@ function TaskItem({
         isCompleted
           ? "bg-[var(--success-bg)] border-[var(--success-border)]"
           : isFailed
-          ? "bg-[var(--danger-bg)] border-[var(--danger-border)]"
-          : "bg-[var(--surface)] border-[var(--border)]"
+            ? "bg-[var(--danger-bg)] border-[var(--danger-border)]"
+            : "bg-[var(--surface)] border-[var(--border)]"
       }`}
       style={{ boxShadow: "var(--card-shadow)" }}
     >
@@ -493,10 +801,14 @@ function TaskItem({
           />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="text-sm font-medium text-[var(--text-secondary)]">Task type</label>
+              <label className="text-sm font-medium text-[var(--text-secondary)]">
+                Task type
+              </label>
               <select
                 value={editForm.type}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, type: e.target.value }))}
+                onChange={(e) =>
+                  setEditForm((prev) => ({ ...prev, type: e.target.value }))
+                }
                 className="mt-1 w-full"
               >
                 <option value="daily">Daily</option>
@@ -505,11 +817,18 @@ function TaskItem({
             </div>
             {editForm.type === "special" && (
               <div>
-                <label className="text-sm font-medium text-[var(--text-secondary)]">Due date</label>
+                <label className="text-sm font-medium text-[var(--text-secondary)]">
+                  Due date
+                </label>
                 <input
                   type="date"
                   value={editForm.dueDate}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, dueDate: e.target.value }))}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      dueDate: e.target.value,
+                    }))
+                  }
                   className="mt-1 w-full"
                 />
               </div>
@@ -519,7 +838,11 @@ function TaskItem({
             <button type="submit" className="btn-primary sm:px-5">
               Save
             </button>
-            <button type="button" onClick={handleCancelEdit} className="btn-secondary sm:px-5">
+            <button
+              type="button"
+              onClick={handleCancelEdit}
+              className="btn-secondary sm:px-5"
+            >
               Cancel
             </button>
           </div>
@@ -531,10 +854,14 @@ function TaskItem({
               <input
                 type="checkbox"
                 checked={isCompleted}
+                disabled={isSmart}
                 onChange={(e) =>
-                  onUpdateStatus(task._id, e.target.checked ? "completed" : "pending")
+                  onUpdateStatus(
+                    task._id,
+                    e.target.checked ? "completed" : "pending",
+                  )
                 }
-                className="mt-1 h-5 w-5 text-[var(--accent)] rounded border-[var(--border)] focus:ring-[var(--accent)]"
+                className="mt-1 h-5 w-5 text-[var(--accent)] rounded border-[var(--border)] focus:ring-[var(--accent)] disabled:opacity-50"
               />
               <div className="flex flex-col gap-1">
                 <div className="flex flex-wrap items-center gap-3">
@@ -551,10 +878,16 @@ function TaskItem({
                     {STATUS_LABELS[status]}
                   </span>
                   <span className="rounded-full border border-[var(--border)] bg-[var(--surface-subtle)] px-2 py-0.5 text-xs text-[var(--text-secondary)]">
-                    {task.type === "daily" ? "Daily" : "Special"}
+                    {isProtocol ? "Protocol" : task.type === "daily" ? "Daily" : "Special"}
                   </span>
+                  {isSmart && (
+                    <span className="rounded-full border border-[var(--border)] bg-[var(--surface-subtle)] px-2 py-0.5 text-xs text-[var(--text-muted)]">
+                      Smart
+                    </span>
+                  )}
                 </div>
-                {(task.description || (task.type === "special" && task.dueDate)) && (
+                {(task.description ||
+                  (task.type === "special" && task.dueDate)) && (
                   <p
                     className={`text-sm ${
                       isCompleted
@@ -564,7 +897,9 @@ function TaskItem({
                   >
                     {task.description}
                     {task.type === "special" && task.dueDate && (
-                      <span className="ml-3 text-[var(--text-muted)]">Due: {task.dueDate}</span>
+                      <span className="ml-3 text-[var(--text-muted)]">
+                        Due: {task.dueDate}
+                      </span>
                     )}
                   </p>
                 )}
@@ -573,25 +908,37 @@ function TaskItem({
           </div>
           <div className="flex flex-col gap-2 sm:items-end">
             <div className="flex flex-wrap gap-2">
-              {status !== "completed" && (
-                <button onClick={() => onUpdateStatus(task._id, "completed")} className="btn-primary px-4 py-2">
+              {status !== "completed" && !isSmart && (
+                <button
+                  onClick={() => onUpdateStatus(task._id, "completed")}
+                  className="btn-primary px-4 py-2"
+                >
                   Mark complete
                 </button>
               )}
+              {isSmart && task.smartAction === "workout" && (
+                <a href="/strength" className="btn-primary px-4 py-2">
+                  Open workout logger
+                </a>
+              )}
             </div>
             <div className="flex flex-wrap gap-2 text-sm">
-              <button
-                onClick={handleEdit}
-                className="text-[var(--accent)] hover:text-[var(--accent-hover)]"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => onDelete(task._id)}
-                className="text-[var(--danger)] hover:text-[var(--danger-hover)]"
-              >
-                Delete
-              </button>
+              {!isProtocol && (
+                <>
+                  <button
+                    onClick={handleEdit}
+                    className="text-[var(--accent)] hover:text-[var(--accent-hover)]"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => onDelete(task._id)}
+                    className="text-[var(--danger)] hover:text-[var(--danger-hover)]"
+                  >
+                    Delete
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -612,6 +959,58 @@ function SummaryCard({ title, value, highlight }) {
       <p className="mt-2 text-4xl font-bold" style={{ color: highlight }}>
         {value}
       </p>
+    </div>
+  );
+}
+
+function FlipTimer({ remaining }) {
+  const safeRemaining = Math.max(0, Number(remaining) || 0);
+  const hours = Math.floor(safeRemaining / 3600);
+  const minutes = Math.floor((safeRemaining % 3600) / 60);
+  const seconds = Math.floor(safeRemaining % 60);
+
+  return (
+    <div className="space-y-4">
+      <p className="text-center text-xs uppercase tracking-[0.4em] text-[var(--text-muted)]">
+        Focus timer
+      </p>
+      <div className="grid grid-cols-3 gap-3 text-center">
+        <FlipUnit label="Hours" value={hours} />
+        <FlipUnit label="Minutes" value={minutes} />
+        <FlipUnit label="Seconds" value={seconds} />
+      </div>
+    </div>
+  );
+}
+
+function FlipUnit({ label, value }) {
+  const display = String(value).padStart(2, "0");
+  const [prev, setPrev] = useState(display);
+  const [flipKey, setFlipKey] = useState(0);
+
+  useEffect(() => {
+    if (display !== prev) {
+      setPrev(display);
+      setFlipKey((key) => key + 1);
+    }
+  }, [display, prev]);
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div className="relative h-20 w-full perspective-[900px]">
+        <div className="absolute inset-0 z-10 flex items-center justify-center text-4xl font-semibold tracking-[0.12em] text-[var(--text-primary)]">
+          {display}
+        </div>
+        <div
+          key={flipKey}
+          className="absolute inset-0 rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] [transform-style:preserve-3d] animate-[flip_0.45s_ease-in-out]"
+        >
+          <div className="absolute inset-x-2 top-1/2 h-px bg-[var(--border)]" />
+        </div>
+      </div>
+      <span className="text-[10px] uppercase tracking-[0.35em] text-[var(--text-muted)]">
+        {label}
+      </span>
     </div>
   );
 }

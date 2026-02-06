@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { ObjectId } from "mongodb";
 import { requireAuth } from "../../../lib/api-utils";
 import { getExerciseById, findExerciseIdByLabel } from "../../../lib/exercises";
 
@@ -169,7 +168,7 @@ function computeWeeklySummary(lifts) {
         totalVolume: 0,
         topWeight: 0,
         topReps: 0,
-        topExerciseLabel: '',
+        topExerciseLabel: "",
         topSetRecordedAt: null,
       });
     }
@@ -220,8 +219,8 @@ function computeWeeklySummary(lifts) {
   }
 
   exerciseSummaries.sort((a, b) => {
-    const aLatest = a.weeks[a.weeks.length - 1]?.weekStartIso || '';
-    const bLatest = b.weeks[b.weeks.length - 1]?.weekStartIso || '';
+    const aLatest = a.weeks[a.weeks.length - 1]?.weekStartIso || "";
+    const bLatest = b.weeks[b.weeks.length - 1]?.weekStartIso || "";
     return bLatest.localeCompare(aLatest);
   });
 
@@ -265,38 +264,35 @@ export async function GET(request) {
   }
 
   try {
-    const lifts = await auth.db
-      .collection("lifts")
-      .find({ userId: new ObjectId(auth.userId) })
-      .project({
-        exerciseId: 1,
-        exercise: 1,
-        weight: 1,
-        reps: 1,
-        recordedAt: 1,
-        date: 1,
-        createdAt: 1,
-      })
-      .toArray();
+    const { data: lifts, error } = await auth.supabase
+      .from("lifts")
+      .select("exercise_id, exercise, weight, reps, recorded_at, date, created_at")
+      .eq("user_id", auth.userId);
 
-    const { exercises, overall } = computeWeeklySummary(lifts);
+    if (error) {
+      throw error;
+    }
+
+    const normalized = (lifts ?? []).map((lift) => ({
+      exerciseId: lift.exercise_id ?? null,
+      exercise: lift.exercise,
+      weight: lift.weight,
+      reps: lift.reps,
+      recordedAt: lift.recorded_at,
+      date: lift.date,
+      createdAt: lift.created_at,
+    }));
+
+    const { exercises, overall } = computeWeeklySummary(normalized);
 
     return NextResponse.json({
-
       window: WEEK_PLATEAU_WINDOW,
-
       threshold: WEIGHT_STALL_THRESHOLD,
-
       overall,
-
       exercises,
-
     });
   } catch (error) {
     console.error("Weekly lift summary error:", error);
     return NextResponse.json({ message: "Internal server error" }, { status: 500 });
   }
 }
-
-
-

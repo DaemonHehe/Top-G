@@ -1,0 +1,7 @@
+{
+  "crons": [
+    { "path": "/api/tasks/rollover", "schedule": "5 0 * * *" },
+    { "path": "/api/protocols/inject", "schedule": "6 0 * * *" },
+    { "path": "/api/protocols/constraints", "schedule": "5 7 * * *" }
+  ]
+}

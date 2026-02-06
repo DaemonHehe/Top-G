@@ -1,16 +1,14 @@
 import { NextResponse } from "next/server";
-import { ObjectId } from "mongodb";
-import { hashPassword, verifyPassword } from "../../../lib/auth";
 import { requireAuth, sanitizeUser } from "../../../lib/api-utils";
 import { validateUserUpdate, hasValidationErrors } from "../../../lib/validators";
+import { createSupabaseAnonClient, supabaseAdmin } from "../../../lib/supabase";
 
-const COOKIE_NAME = "token";
-
-function parseObjectId(id) {
-  if (!ObjectId.isValid(id)) {
+function parseUserId(id) {
+  if (typeof id !== "string") {
     return null;
   }
-  return new ObjectId(id);
+  const trimmed = id.trim();
+  return trimmed ? trimmed : null;
 }
 
 function forbidWhenNotSelf(requestedId, authenticatedId) {
@@ -27,7 +25,7 @@ export async function GET(request, context) {
   }
 
   const { id } = await context.params;
-  const userId = parseObjectId(id);
+  const userId = parseUserId(id);
   if (!userId) {
     return NextResponse.json({ message: "Invalid user id" }, { status: 400 });
   }
@@ -37,7 +35,16 @@ export async function GET(request, context) {
     return forbidden;
   }
 
-  const user = await auth.db.collection("users").findOne({ _id: userId });
+  const { data: user, error } = await auth.supabase
+    .from("users")
+    .select("*")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("User fetch error:", error);
+    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+  }
 
   if (!user) {
     return NextResponse.json({ message: "User not found" }, { status: 404 });
@@ -53,7 +60,7 @@ export async function PUT(request, context) {
   }
 
   const { id } = await context.params;
-  const requestedUserId = parseObjectId(id);
+  const requestedUserId = parseUserId(id);
   if (!requestedUserId) {
     return NextResponse.json({ message: "Invalid user id" }, { status: 400 });
   }
@@ -63,7 +70,7 @@ export async function PUT(request, context) {
     return forbidden;
   }
 
-  const authenticatedUserId = parseObjectId(auth.userId || auth.user?._id?.toString());
+  const authenticatedUserId = parseUserId(auth.userId || auth.user?.id);
   if (!authenticatedUserId) {
     return NextResponse.json({ message: "Invalid authenticated user id" }, { status: 400 });
   }
@@ -77,46 +84,67 @@ export async function PUT(request, context) {
 
   const { data, errors } = validateUserUpdate(body);
 
-  const currentPasswordRaw = typeof body.currentPassword === "string" ? body.currentPassword : "";
-
   if (Object.keys(data).length === 0) {
     errors.general = "No valid fields provided";
   }
 
-  if (data.password) {
-    if (!currentPasswordRaw) {
-      return NextResponse.json({ message: "Current password is required" }, { status: 400 });
-    }
-
-    if (!auth.user?.password) {
-      return NextResponse.json({ message: "Password updates are not available for this account" }, { status: 400 });
-    }
-
-    const passwordMatches = await verifyPassword(currentPasswordRaw, auth.user.password);
-    if (!passwordMatches) {
-      return NextResponse.json({ message: "Current password is incorrect" }, { status: 400 });
-    }
-  }
-
   if (hasValidationErrors(errors)) {
-    return NextResponse.json(
-      { message: "Validation failed", errors },
-      { status: 400 }
-    );
+    return NextResponse.json({ message: "Validation failed", errors }, { status: 400 });
   }
 
   if (data.email) {
-    const duplicate = await auth.db.collection("users").findOne({
-      email: data.email,
-      _id: { $ne: authenticatedUserId },
-    });
+    const { data: duplicate, error: duplicateError } = await auth.supabase
+      .from("users")
+      .select("id")
+      .eq("email", data.email)
+      .neq("id", authenticatedUserId)
+      .maybeSingle();
+
+    if (duplicateError) {
+      console.error("User email check error:", duplicateError);
+      return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+    }
 
     if (duplicate) {
       return NextResponse.json({ message: "Email already in use" }, { status: 400 });
     }
   }
 
-  const update = { updatedAt: new Date() };
+  const authUpdates = {};
+  if (data.email) authUpdates.email = data.email;
+  if (data.password) authUpdates.password = data.password;
+
+  if (Object.keys(authUpdates).length > 0) {
+    if (data.password || data.email) {
+      const currentPasswordRaw = typeof body.currentPassword === "string" ? body.currentPassword : "";
+      if (!currentPasswordRaw) {
+        return NextResponse.json({ message: "Current password is required" }, { status: 400 });
+      }
+
+      const emailForCheck = auth.authUser?.email || auth.user?.email;
+      if (!emailForCheck) {
+        return NextResponse.json({ message: "Unable to verify current password" }, { status: 400 });
+      }
+
+      const anon = createSupabaseAnonClient();
+      const { error: signInError } = await anon.auth.signInWithPassword({
+        email: emailForCheck,
+        password: currentPasswordRaw,
+      });
+
+      if (signInError) {
+        return NextResponse.json({ message: "Current password is incorrect" }, { status: 400 });
+      }
+    }
+
+    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(auth.authUser.id, authUpdates);
+    if (authError) {
+      console.error("Auth update error:", authError);
+      return NextResponse.json({ message: authError.message || "Unable to update account credentials" }, { status: 400 });
+    }
+  }
+
+  const update = { updated_at: new Date().toISOString() };
 
   if (data.name) {
     update.name = data.name;
@@ -126,34 +154,50 @@ export async function PUT(request, context) {
     update.email = data.email;
   }
 
-  if (data.password) {
-    update.password = await hashPassword(data.password);
-  }
-
   if (data.timezone) {
     update.timezone = data.timezone;
   }
 
-  if (data.avatar) {
+  if ("avatar" in data) {
     update.avatar = data.avatar;
   }
 
   try {
-    const result = await auth.db.collection("users").findOneAndUpdate(
-      { _id: authenticatedUserId },
-      { $set: update },
-      { returnDocument: "after" }
-    );
+    if (Object.keys(update).length <= 1) {
+      return NextResponse.json({ user: sanitizeUser(auth.user) }, { status: 200 });
+    }
 
-    if (!result.value) {
-      const fallback = await auth.db.collection("users").findOne({ _id: authenticatedUserId });
+    const { data: updatedUser, error } = await auth.supabase
+      .from("users")
+      .update(update)
+      .eq("id", authenticatedUserId)
+      .select("*")
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    if (!updatedUser) {
+      const { data: fallback, error: fallbackError } = await auth.supabase
+        .from("users")
+        .select("*")
+        .eq("id", authenticatedUserId)
+        .maybeSingle();
+
+      if (fallbackError) {
+        console.error("User fallback fetch error:", fallbackError);
+        return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+      }
+
       if (!fallback) {
         return NextResponse.json({ message: "We couldn't find your account. Please sign in again." }, { status: 404 });
       }
+
       return NextResponse.json({ user: sanitizeUser(fallback) }, { status: 200 });
     }
 
-    return NextResponse.json({ user: sanitizeUser(result.value) }, { status: 200 });
+    return NextResponse.json({ user: sanitizeUser(updatedUser) }, { status: 200 });
   } catch (error) {
     console.error("User update error:", error);
     return NextResponse.json({ message: "Internal server error" }, { status: 500 });
@@ -167,7 +211,7 @@ export async function DELETE(request, context) {
   }
 
   const { id } = await context.params;
-  const userId = parseObjectId(id);
+  const userId = parseUserId(id);
   if (!userId) {
     return NextResponse.json({ message: "Invalid user id" }, { status: 400 });
   }
@@ -178,30 +222,28 @@ export async function DELETE(request, context) {
   }
 
   try {
-    const deletion = await auth.db.collection("users").deleteOne({ _id: userId });
+    const { data: deletion, error } = await supabaseAdmin
+      .from("users")
+      .delete()
+      .eq("id", userId)
+      .select("id");
 
-    if (deletion.deletedCount === 0) {
+    if (error) {
+      throw error;
+    }
+
+    if (!deletion || deletion.length === 0) {
       return NextResponse.json({ message: "User not found" }, { status: 404 });
     }
 
-    await auth.db.collection("tasks").deleteMany({ userId });
+    if (auth.authUser?.id) {
+      const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(auth.authUser.id);
+      if (authDeleteError) {
+        console.error("Auth user delete error:", authDeleteError);
+      }
+    }
 
-    const response = NextResponse.json(
-      { message: "User deleted successfully" },
-      { status: 200 }
-    );
-
-    response.cookies.set({
-      name: COOKIE_NAME,
-      value: "",
-      path: "/",
-      httpOnly: true,
-      expires: new Date(0),
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-    });
-
-    return response;
+    return NextResponse.json({ message: "User deleted successfully" }, { status: 200 });
   } catch (error) {
     console.error("User delete error:", error);
     return NextResponse.json({ message: "Internal server error" }, { status: 500 });

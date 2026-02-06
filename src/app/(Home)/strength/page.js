@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import NavigationBar from "../../components/navigation-bar";
 import { EXERCISE_GROUPS, getExerciseById, findExerciseIdByLabel } from "../../lib/exercises";
+import { fetchWithAuth } from "../../lib/supabase-browser";
 
 const CUSTOM_EXERCISE_ID = "custom";
 
@@ -120,7 +121,7 @@ export default function Strength() {
 
     const fetchLifts = async () => {
       try {
-        const response = await fetch("/api/lifts", { credentials: "include" });
+        const response = await fetchWithAuth("/api/lifts");
         if (!response.ok) {
           throw new Error("Failed to fetch lifts");
         }
@@ -143,7 +144,7 @@ export default function Strength() {
 
     const fetchWeekly = async () => {
       try {
-        const response = await fetch("/api/lifts/weekly", { credentials: "include" });
+        const response = await fetchWithAuth("/api/lifts/weekly");
         if (!response.ok) {
           throw new Error("Failed to fetch weekly lifts");
         }
@@ -362,9 +363,8 @@ export default function Strength() {
     resetForm();
 
     try {
-      const response = await fetch("/api/lifts", {
+      const response = await fetchWithAuth("/api/lifts", {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           exerciseId,
@@ -406,9 +406,8 @@ export default function Strength() {
     }
 
     try {
-      const response = await fetch("/api/lifts", {
+      const response = await fetchWithAuth("/api/lifts", {
         method: "DELETE",
-        credentials: "include",
       });
 
       if (!response.ok) {
@@ -419,7 +418,7 @@ export default function Strength() {
       console.error("Lift delete error:", error);
       setSyncMessage("Unable to delete lift on the server. It will reappear after refresh if it still exists.");
       try {
-        const refresh = await fetch("/api/lifts", { credentials: "include" });
+        const refresh = await fetchWithAuth("/api/lifts");
         if (refresh.ok) {
           const data = await refresh.json();
           setEntries(Array.isArray(data) ? data.map(normaliseEntry) : []);
@@ -442,7 +441,7 @@ export default function Strength() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--background-muted)]">
+    <div className="min-h-screen bg-[var(--background-muted)] animate-fade-up">
       <NavigationBar />
       <main className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-8 sm:space-y-10">
         <header className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 sm:p-8" style={{ boxShadow: "var(--card-shadow)" }}>

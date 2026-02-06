@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import NavigationBar from "../../components/navigation-bar";
 import { BIG_FOUR_EXERCISES, getExerciseById, findExerciseIdByLabel } from "../../lib/exercises";
+import { fetchWithAuth, supabaseBrowser } from "../../lib/supabase-browser";
 
 const STATUS_LABELS = {
   pending: "Pending",
@@ -35,6 +37,14 @@ const DEFAULT_PROFILE = {
   email: "mgsan2163@gmail.com",
 };
 
+const RANKS = [
+  { name: "Initiate", min: 0, max: 499 },
+  { name: "Hustler", min: 500, max: 1499 },
+  { name: "Operator", min: 1500, max: 3499 },
+  { name: "Kingpin", min: 3500, max: 6999 },
+  { name: "Top-G", min: 7000, max: Infinity },
+];
+
 function startOfDay(date) {
   const copy = new Date(date);
   copy.setHours(0, 0, 0, 0);
@@ -53,6 +63,38 @@ function shiftDate(date, amount) {
 
 function getIsoDay(date) {
   return (date.getDay() + 6) % 7;
+}
+
+function getRankProgress(totalXp = 0) {
+  const xp = Math.max(0, Number(totalXp) || 0);
+  const current = RANKS.find((rank) => xp >= rank.min && xp <= rank.max) ?? RANKS[0];
+  const currentIndex = RANKS.findIndex((rank) => rank.name === current.name);
+  const next = RANKS[currentIndex + 1] ?? null;
+  if (!next) {
+    return { current, next: null, progress: 100, remaining: 0, span: current.max - current.min };
+  }
+  const span = next.min - current.min;
+  const progress = Math.min(100, Math.round(((xp - current.min) / span) * 100));
+  const remaining = Math.max(0, next.min - xp);
+  return { current, next, progress, remaining, span };
+}
+
+function isWeeklyBonusAvailable(user) {
+  const streak = Number(user?.currentStreak ?? 0);
+  if (streak < 7) return false;
+  if (!user?.lastStreakBonusAt) return true;
+  const last = new Date(user.lastStreakBonusAt);
+  if (Number.isNaN(last.getTime())) return true;
+  const diffMs = Date.now() - last.getTime();
+  return diffMs >= 7 * 24 * 60 * 60 * 1000;
+}
+
+function formatNextBonusWindow(user) {
+  if (!user?.lastStreakBonusAt) return "Ready when streak hits 7 days.";
+  const last = new Date(user.lastStreakBonusAt);
+  if (Number.isNaN(last.getTime())) return "Ready when streak hits 7 days.";
+  const next = new Date(last.getTime() + 7 * 24 * 60 * 60 * 1000);
+  return `Next claim ${next.toLocaleDateString(undefined, { month: "short", day: "numeric" })}.`;
 }
 
 const normaliseTask = (task) => {
@@ -141,6 +183,7 @@ function getPersonalRecordDates(lifts = []) {
 }
 
 export default function Profile() {
+  const router = useRouter();
   const [tasks, setTasks] = useState([]);
   const [lifts, setLifts] = useState([]);
   const [liftsError, setLiftsError] = useState("");
@@ -148,6 +191,7 @@ export default function Profile() {
   const [user, setUser] = useState(null);
   const [profileForm, setProfileForm] = useState({ ...DEFAULT_PROFILE });
   const [identityNotice, setIdentityNotice] = useState({ type: "idle", text: "" });
+  const [identityPassword, setIdentityPassword] = useState("");
   const [avatarPreview, setAvatarPreview] = useState("");
   const [avatarNotice, setAvatarNotice] = useState({ type: "idle", text: "" });
   const [passwordForm, setPasswordForm] = useState({ current: "", next: "", confirm: "" });
@@ -155,10 +199,11 @@ export default function Profile() {
   const [savingIdentity, setSavingIdentity] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [updatingPassword, setUpdatingPassword] = useState(false);
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
-  const [securityMessage, setSecurityMessage] = useState("");
+  const [activeModal, setActiveModal] = useState(null);
   const [exportingData, setExportingData] = useState(false);
   const [exportMessage, setExportMessage] = useState("");
+  const [bonusStatus, setBonusStatus] = useState({ type: "idle", text: "" });
+  const [claimingBonus, setClaimingBonus] = useState(false);
   const getNoticeClass = (notice) => {
     if (!notice?.text) {
       return "text-[var(--text-muted)]";
@@ -182,7 +227,7 @@ export default function Profile() {
 
   const syncTimezone = useCallback(async () => {
     try {
-      const res = await fetch("/api/users", { credentials: "include" });
+      const res = await fetchWithAuth("/api/users");
       if (!res.ok) return;
       const payload = await res.json();
       const account = payload?.user;
@@ -193,7 +238,6 @@ export default function Profile() {
           name: account.name || DEFAULT_PROFILE.name,
           email: account.email || DEFAULT_PROFILE.email,
         });
-        setTwoFactorEnabled(Boolean(account.twoFactorEnabled));
         setAvatarPreview((prev) => prev || account.avatarUrl || account.avatar || "");
       } else {
         setProfileForm({ ...DEFAULT_PROFILE });
@@ -204,9 +248,8 @@ export default function Profile() {
         return;
       }
 
-      await fetch(`/api/users/${account.id}`, {
+      await fetchWithAuth(`/api/users/${account.id}`, {
         method: "PUT",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ timezone: tz }),
       });
@@ -217,9 +260,7 @@ export default function Profile() {
 
   const fetchTasks = useCallback(async () => {
     try {
-      const response = await fetch("/api/tasks", {
-        credentials: "include",
-      });
+      const response = await fetchWithAuth("/api/tasks");
       if (response.ok) {
         const data = await response.json();
         setTasks(data.map(normaliseTask));
@@ -233,9 +274,7 @@ export default function Profile() {
 
   const fetchLifts = useCallback(async () => {
     try {
-      const response = await fetch("/api/lifts", {
-        credentials: "include",
-      });
+      const response = await fetchWithAuth("/api/lifts");
       if (!response.ok) {
         throw new Error("Failed to fetch lifts");
       }
@@ -367,6 +406,7 @@ export default function Profile() {
       bigFour,
     };
   }, [lifts]);
+
 
   const contributionMetrics = useMemo(() => {
     const today = startOfDay(new Date());
@@ -508,9 +548,17 @@ export default function Profile() {
   const displayName = profileForm.name || user?.name || DEFAULT_PROFILE.name;
   const displayEmail = profileForm.email || user?.email || DEFAULT_PROFILE.email;
   const heaviestLift = strengthInsights.heaviest;
+  const rankProgress = useMemo(() => getRankProgress(user?.totalXp ?? 0), [user?.totalXp]);
+  const bonusAvailable = useMemo(() => isWeeklyBonusAvailable(user), [user]);
 
   const handleIdentityChange = (field) => (event) => {
     setProfileForm((prev) => ({ ...prev, [field]: event.target.value }));
+    if (identityNotice.text) {
+      setIdentityNotice({ type: "idle", text: "" });
+    }
+  };
+  const handleIdentityPasswordChange = (event) => {
+    setIdentityPassword(event.target.value);
     if (identityNotice.text) {
       setIdentityNotice({ type: "idle", text: "" });
     }
@@ -535,6 +583,13 @@ export default function Profile() {
       return;
     }
 
+    const nameChanged = name !== (user?.name || "");
+    const emailChanged = email !== (user?.email || "");
+    if ((nameChanged || emailChanged) && !identityPassword) {
+      setIdentityNotice({ type: "error", text: "Current password is required to update your profile." });
+      return;
+    }
+
     if (!user?.id) {
       setIdentityNotice({ type: "error", text: "Sign in to update your account information." });
       return;
@@ -544,11 +599,14 @@ export default function Profile() {
     setIdentityNotice({ type: "idle", text: "" });
 
     try {
-      const response = await fetch(`/api/users/${user.id}`, {
+      const response = await fetchWithAuth(`/api/users/${user.id}`, {
         method: "PUT",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email }),
+        body: JSON.stringify({
+          name,
+          email,
+          currentPassword: identityPassword || undefined,
+        }),
       });
 
       const payload = await response.json().catch(() => null);
@@ -571,6 +629,7 @@ export default function Profile() {
         });
       }
 
+      setIdentityPassword("");
       setIdentityNotice({ type: "success", text: "Profile details updated successfully." });
     } catch (error) {
       const message = error instanceof Error ? error.message : "We couldn't update your profile.";
@@ -580,13 +639,31 @@ export default function Profile() {
     }
   };
 
-  const fileToDataUrl = (file) =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
-      reader.onerror = () => reject(new Error("We couldn't read that file."));
-      reader.readAsDataURL(file);
+  const uploadAvatarFile = async (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetchWithAuth("/api/avatars", {
+      method: "POST",
+      body: formData,
     });
+
+    const payload = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      const errorMessage =
+        payload?.message ||
+        payload?.error ||
+        "We couldn't upload that image.";
+      throw new Error(errorMessage);
+    }
+
+    if (!payload?.url) {
+      throw new Error("We couldn't upload that image.");
+    }
+
+    return payload.url;
+  };
 
   const handleAvatarChange = async (event) => {
     const input = event.target;
@@ -621,19 +698,17 @@ export default function Profile() {
     setAvatarUploading(true);
     setAvatarNotice({ type: "idle", text: "" });
 
+    let localPreview = "";
     try {
-      const dataUrl = await fileToDataUrl(file);
-      if (!dataUrl) {
-        throw new Error("We couldn't read that file. Try a different image.");
-      }
+      localPreview = URL.createObjectURL(file);
+      setAvatarPreview(localPreview);
 
-      setAvatarPreview(dataUrl);
+      const uploadedUrl = await uploadAvatarFile(file);
 
-      const response = await fetch(`/api/users/${user.id}`, {
+      const response = await fetchWithAuth(`/api/users/${user.id}`, {
         method: "PUT",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ avatar: dataUrl }),
+        body: JSON.stringify({ avatar: uploadedUrl }),
       });
 
       const payload = await response.json().catch(() => null);
@@ -651,6 +726,7 @@ export default function Profile() {
         setUser(payload.user);
       }
 
+      setAvatarPreview(uploadedUrl);
       setAvatarNotice({ type: "success", text: "Avatar updated successfully." });
     } catch (error) {
       const message = error instanceof Error ? error.message : "We couldn't update your avatar.";
@@ -693,9 +769,8 @@ export default function Profile() {
     setPasswordNotice({ type: "idle", text: "" });
 
     try {
-      const response = await fetch(`/api/users/${user.id}`, {
+      const response = await fetchWithAuth(`/api/users/${user.id}`, {
         method: "PUT",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           password: passwordForm.next,
@@ -716,26 +791,15 @@ export default function Profile() {
 
       setPasswordNotice({ type: "success", text: "Password updated successfully." });
       setPasswordForm({ current: "", next: "", confirm: "" });
+      await supabaseBrowser.auth.signOut();
+      router.replace("/login");
+      router.refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : "We couldn't update your password.";
       setPasswordNotice({ type: "error", text: message });
     } finally {
       setUpdatingPassword(false);
     }
-  };
-
-  const handleTwoFactorToggle = () => {
-    const next = !twoFactorEnabled;
-    setTwoFactorEnabled(next);
-    setSecurityMessage(
-      next
-        ? "Two-factor authentication marked as enabled. Connect your security API to make this permanent."
-        : "Two-factor authentication disabled locally. Persist the change via your backend."
-    );
-  };
-
-  const handleLogoutAllSessions = () => {
-    setSecurityMessage("Requested log out across all sessions. Implement /api/auth/logout-all to complete this action.");
   };
 
   const handleExportData = () => {
@@ -765,6 +829,40 @@ export default function Profile() {
     }
   };
 
+  const handleClaimWeeklyBonus = async () => {
+    if (!bonusAvailable || !user?.id || claimingBonus) return;
+    setClaimingBonus(true);
+    setBonusStatus({ type: "idle", text: "" });
+
+    try {
+      const response = await fetchWithAuth("/api/gamification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actionType: "streak_weekly_bonus" }),
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.message || "Unable to claim bonus.");
+      }
+
+      if (payload?.user) {
+        setUser(payload.user);
+      }
+
+      if (payload?.applied) {
+        setBonusStatus({ type: "success", text: "Weekly bonus claimed. Keep the streak alive." });
+      } else {
+        setBonusStatus({ type: "info", text: payload?.message || "Weekly bonus not available yet." });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to claim bonus.";
+      setBonusStatus({ type: "error", text: message });
+    } finally {
+      setClaimingBonus(false);
+    }
+  };
+
   useEffect(() => {
     return () => {
       if (avatarPreview && avatarPreview.startsWith("blob:")) {
@@ -787,7 +885,7 @@ export default function Profile() {
   return (
     <div className="min-h-screen bg-[var(--background-muted)]">
       <NavigationBar />
-      <main className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-8 sm:space-y-10">
+      <main className="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-8 sm:space-y-10 animate-fade-up">
         <header className="bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-6 sm:p-8" style={{ boxShadow: "var(--card-shadow)" }}>
           <div className="flex flex-col items-center gap-6 text-center md:flex-row md:items-center md:justify-between md:text-left">
             <div className="flex items-start gap-4 text-left">
@@ -830,166 +928,39 @@ export default function Profile() {
           <div className="lg:col-span-2">
             <ProfileCard
               title="Account settings"
-              description="Manage your identity, avatar, and password from one place."
+              description="Change your username, update your avatar, or reset your password."
             >
-              <div className="space-y-8">
-                <div className="space-y-4">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Identity</h3>
-                  <form className="space-y-4" onSubmit={handleIdentitySubmit}>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <label className="space-y-1 text-sm">
-                        <span className="font-medium text-[var(--text-secondary)]">Name</span>
-                        <input
-                          type="text"
-                          value={profileForm.name}
-                          onChange={handleIdentityChange("name")}
-                          placeholder="Enter your name"
-                          className="w-full"
-                          disabled={savingIdentity}
-                        />
-                      </label>
-                      <label className="space-y-1 text-sm">
-                        <span className="font-medium text-[var(--text-secondary)]">Email</span>
-                        <input
-                          type="email"
-                          value={profileForm.email}
-                          onChange={handleIdentityChange("email")}
-                          placeholder="you@example.com"
-                          className="w-full"
-                          disabled={savingIdentity}
-                        />
-                      </label>
-                    </div>
-                    {identityNotice.text && (
-                      <p className={`text-xs ${getNoticeClass(identityNotice)}`}>{identityNotice.text}</p>
-                    )}
-                    <div className="flex flex-wrap gap-2">
-                      <button type="submit" className="btn-primary" disabled={savingIdentity}>
-                        {savingIdentity ? "Saving..." : "Save changes"}
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-secondary"
-                        onClick={resetProfileForm}
-                        disabled={savingIdentity || !user}
-                      >
-                        Revert
-                      </button>
-                    </div>
-                  </form>
-                </div>
-
-                <div className="space-y-4 border-t border-[var(--border)] pt-6">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Avatar</h3>
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
-                    <div className="relative h-16 w-16 flex items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] text-lg font-semibold text-[var(--text-primary)]">
-                      {avatarPreview ? (
-                        <Image src={avatarPreview} alt="Avatar preview" fill sizes="64px" className="rounded-2xl object-cover" unoptimized />
-                      ) : (
-                        <span>{profileInitials}</span>
-                      )}
-                    </div>
-                    <div className="space-y-3 text-sm text-[var(--text-secondary)]">
-                      <label
-                        htmlFor="profile-avatar-upload"
-                        className={`btn-secondary inline-flex items-center justify-center px-4 py-2 ${avatarUploading ? "cursor-not-allowed opacity-75" : "cursor-pointer"}`}
-                        aria-disabled={avatarUploading}
-                      >
-                        {avatarUploading ? "Uploading..." : "Upload image"}
-                      </label>
-                      <input
-                        id="profile-avatar-upload"
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleAvatarChange}
-                        disabled={avatarUploading}
-                      />
-                      {avatarNotice.text ? (
-                        <p className={`text-xs ${getNoticeClass(avatarNotice)}`}>{avatarNotice.text}</p>
-                      ) : (
-                        <p className="text-xs text-[var(--text-muted)]">
-                          Upload a square image around 512px for the sharpest avatar.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-4 border-t border-[var(--border)] pt-6">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Change password</h3>
-                  <form className="space-y-4" onSubmit={handlePasswordSubmit}>
-                    <div className="grid gap-4 md:grid-cols-3">
-                      <label className="space-y-1 text-sm">
-                        <span className="font-medium text-[var(--text-secondary)]">Current password</span>
-                        <input
-                          type="password"
-                          value={passwordForm.current}
-                          onChange={handlePasswordChange("current")}
-                          placeholder="********"
-                          disabled={updatingPassword}
-                          className="w-full"
-                        />
-                      </label>
-                      <label className="space-y-1 text-sm">
-                        <span className="font-medium text-[var(--text-secondary)]">New password</span>
-                        <input
-                          type="password"
-                          value={passwordForm.next}
-                          onChange={handlePasswordChange("next")}
-                          placeholder="********"
-                          disabled={updatingPassword}
-                          className="w-full"
-                        />
-                      </label>
-                      <label className="space-y-1 text-sm">
-                        <span className="font-medium text-[var(--text-secondary)]">Confirm password</span>
-                        <input
-                          type="password"
-                          value={passwordForm.confirm}
-                          onChange={handlePasswordChange("confirm")}
-                          placeholder="********"
-                          disabled={updatingPassword}
-                          className="w-full"
-                        />
-                      </label>
-                    </div>
-                    {passwordNotice.text && (
-                      <p className={`text-xs ${getNoticeClass(passwordNotice)}`}>{passwordNotice.text}</p>
-                    )}
-                    <button type="submit" className="btn-primary" disabled={updatingPassword}>
-                      {updatingPassword ? "Updating..." : "Update password"}
-                    </button>
-                  </form>
-                </div>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <button
+                  type="button"
+                  onClick={() => setActiveModal("identity")}
+                  className="flex flex-col items-start gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] p-4 text-left transition hover:border-[var(--accent)]"
+                >
+                  <span className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Change username</span>
+                  <span className="text-base font-semibold text-[var(--text-primary)]">{displayName}</span>
+                  <span className="text-xs text-[var(--text-secondary)]">Edit name and email.</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveModal("avatar")}
+                  className="flex flex-col items-start gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] p-4 text-left transition hover:border-[var(--accent)]"
+                >
+                  <span className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Upload avatar</span>
+                  <span className="text-base font-semibold text-[var(--text-primary)]">Update photo</span>
+                  <span className="text-xs text-[var(--text-secondary)]">Square image looks best.</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveModal("password")}
+                  className="flex flex-col items-start gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-subtle)] p-4 text-left transition hover:border-[var(--accent)]"
+                >
+                  <span className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Change password</span>
+                  <span className="text-base font-semibold text-[var(--text-primary)]">Reset credentials</span>
+                  <span className="text-xs text-[var(--text-secondary)]">You will re-login after update.</span>
+                </button>
               </div>
             </ProfileCard>
           </div>
-          <ProfileCard title="Security controls" description="Add extra safeguards to your account.">
-            <div className="space-y-4 text-sm text-[var(--text-secondary)]">
-              <div className="flex items-start justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
-                <div>
-                  <p className="font-semibold text-[var(--text-primary)]">Two-factor authentication</p>
-                  <p className="text-xs text-[var(--text-muted)]">Require a verification code every time you sign in.</p>
-                </div>
-                <button type="button" onClick={handleTwoFactorToggle} className="btn-secondary whitespace-nowrap">
-                  {twoFactorEnabled ? "Disable" : "Enable"}
-                </button>
-              </div>
-              <div className="flex items-start justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
-                <div>
-                  <p className="font-semibold text-[var(--text-primary)]">Log out of all devices</p>
-                  <p className="text-xs text-[var(--text-muted)]">Force every active session to re-authenticate.</p>
-                </div>
-                <button type="button" onClick={handleLogoutAllSessions} className="btn-secondary whitespace-nowrap">
-                  Log out all
-                </button>
-              </div>
-              {securityMessage && (
-                <p className="text-xs text-[var(--text-muted)]">{securityMessage}</p>
-              )}
-            </div>
-          </ProfileCard>
         </section>
 
         <section className="space-y-6">
@@ -998,18 +969,51 @@ export default function Profile() {
             <p className="text-sm text-[var(--text-secondary)]">Quick stats to monitor your execution and training progress.</p>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <SummaryCard title="Tasks completed" value={analytics.counts.completed} highlight="var(--accent)" />
             <SummaryCard title="Completion rate" value={`${analytics.successRate}%`} highlight="var(--success-text)" />
-            <SummaryCard title="Lifts logged" value={strengthInsights.total} highlight="var(--text-primary)" />
+            <SummaryCard title="Total XP" value={(user?.totalXp ?? 0).toLocaleString()} highlight="var(--accent)" />
+            <SummaryCard title="Current rank" value={user?.currentRank || "Initiate"} highlight="var(--text-primary)" />
             <SummaryCard
-              title="Longest streak"
-              value={longest?.length ? `${longest.length} day${longest.length === 1 ? "" : "s"}` : "--"}
+              title="Current streak"
+              value={`${Number(user?.currentStreak ?? 0)} day${Number(user?.currentStreak ?? 0) === 1 ? "" : "s"}`}
               highlight="var(--warning-text)"
             />
+            <SummaryCard title="Lifts logged" value={strengthInsights.total} highlight="var(--text-primary)" />
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <AnalyticsCard title="Rank progress">
+              <div className="space-y-4 text-sm text-[var(--text-secondary)]">
+                <div className="flex items-center justify-between rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Current rank</p>
+                    <p className="text-sm font-semibold text-[var(--text-primary)]">{rankProgress.current.name}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Total XP</p>
+                    <p className="text-sm font-semibold text-[var(--accent)]">{Number(user?.totalXp ?? 0).toLocaleString()}</p>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
+                    <span>{Number(user?.totalXp ?? 0).toLocaleString()} XP</span>
+                    <span>{rankProgress.next ? `${rankProgress.next.min.toLocaleString()} XP` : "Max rank"}</span>
+                  </div>
+                  <div className="mt-2 h-2 w-full rounded-full bg-[var(--surface-muted)]">
+                    <div
+                      className="h-2 rounded-full bg-[var(--accent)]"
+                      style={{ width: `${rankProgress.progress}%` }}
+                    />
+                  </div>
+                  <p className="mt-2 text-xs text-[var(--text-secondary)]">
+                    {rankProgress.next
+                      ? `${rankProgress.remaining.toLocaleString()} XP to reach ${rankProgress.next.name}`
+                      : "Top rank secured. Hold the line."}
+                  </p>
+                </div>
+              </div>
+            </AnalyticsCard>
             <AnalyticsCard title="Streaks & momentum">
               <div className="space-y-4 text-sm text-[var(--text-secondary)]">
                 <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
@@ -1019,6 +1023,28 @@ export default function Profile() {
                 <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
                   <p className="text-sm font-semibold text-[var(--text-primary)]">Most productive day</p>
                   <p className="text-sm text-[var(--text-secondary)]">{topDay ? topDaySummary : "Log completions to surface your top day."}</p>
+                </div>
+                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
+                  <p className="text-sm font-semibold text-[var(--text-primary)]">Weekly bonus</p>
+                  <p className="text-sm text-[var(--text-secondary)]">
+                    {bonusAvailable
+                      ? "Claim +100 XP for maintaining a 7-day streak."
+                      : `Progress: ${Math.min(Number(user?.currentStreak ?? 0), 7)}/7 days.`}
+                  </p>
+                  <p className="mt-1 text-xs text-[var(--text-muted)]">
+                    {bonusAvailable ? "Bonus ready now." : formatNextBonusWindow(user)}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleClaimWeeklyBonus}
+                    disabled={!bonusAvailable || claimingBonus}
+                    className="btn-primary mt-3 w-full sm:w-auto"
+                  >
+                    {claimingBonus ? "Claiming..." : "Claim weekly bonus"}
+                  </button>
+                  {bonusStatus.text && (
+                    <p className={`mt-2 text-xs ${getNoticeClass(bonusStatus)}`}>{bonusStatus.text}</p>
+                  )}
                 </div>
               </div>
             </AnalyticsCard>
@@ -1131,6 +1157,169 @@ export default function Profile() {
           </ProfileCard>
         </section>
       </main>
+      {activeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8">
+          <div className="w-full max-w-2xl translate-y-2 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-xl sm:translate-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Account settings</p>
+                <h2 className="text-xl font-semibold text-[var(--text-primary)]">
+                  {activeModal === "identity" && "Change username"}
+                  {activeModal === "avatar" && "Upload avatar"}
+                  {activeModal === "password" && "Change password"}
+                </h2>
+              </div>
+              <button
+                type="button"
+                className="btn-secondary px-3 py-1.5"
+                onClick={() => setActiveModal(null)}
+              >
+                Close
+              </button>
+            </div>
+
+            {activeModal === "identity" && (
+              <form className="mt-6 space-y-4" onSubmit={handleIdentitySubmit}>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="space-y-1 text-sm">
+                    <span className="font-medium text-[var(--text-secondary)]">Name</span>
+                    <input
+                      type="text"
+                      value={profileForm.name}
+                      onChange={handleIdentityChange("name")}
+                      placeholder="Enter your name"
+                      className="w-full"
+                      disabled={savingIdentity}
+                    />
+                  </label>
+                  <label className="space-y-1 text-sm">
+                    <span className="font-medium text-[var(--text-secondary)]">Email</span>
+                    <input
+                      type="email"
+                      value={profileForm.email}
+                      onChange={handleIdentityChange("email")}
+                      placeholder="you@example.com"
+                      className="w-full"
+                      disabled={savingIdentity}
+                    />
+                  </label>
+                </div>
+                <label className="space-y-1 text-sm">
+                  <span className="font-medium text-[var(--text-secondary)]">Current password</span>
+                  <input
+                    type="password"
+                    value={identityPassword}
+                    onChange={handleIdentityPasswordChange}
+                    placeholder="********"
+                    className="w-full"
+                    disabled={savingIdentity}
+                  />
+                </label>
+                {identityNotice.text && (
+                  <p className={`text-xs ${getNoticeClass(identityNotice)}`}>{identityNotice.text}</p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <button type="submit" className="btn-primary" disabled={savingIdentity}>
+                    {savingIdentity ? "Saving..." : "Save changes"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={resetProfileForm}
+                    disabled={savingIdentity || !user}
+                  >
+                    Revert
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {activeModal === "avatar" && (
+              <div className="mt-6 space-y-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+                  <div className="relative h-20 w-20 flex items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] text-lg font-semibold text-[var(--text-primary)]">
+                    {avatarPreview ? (
+                      <Image src={avatarPreview} alt="Avatar preview" fill sizes="80px" className="rounded-2xl object-cover" unoptimized />
+                    ) : (
+                      <span>{profileInitials}</span>
+                    )}
+                  </div>
+                  <div className="space-y-3 text-sm text-[var(--text-secondary)]">
+                    <label
+                      htmlFor="profile-avatar-upload"
+                      className={`btn-secondary inline-flex items-center justify-center px-4 py-2 ${avatarUploading ? "cursor-not-allowed opacity-75" : "cursor-pointer"}`}
+                      aria-disabled={avatarUploading}
+                    >
+                      {avatarUploading ? "Uploading..." : "Upload image"}
+                    </label>
+                    <input
+                      id="profile-avatar-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleAvatarChange}
+                      disabled={avatarUploading}
+                    />
+                    {avatarNotice.text ? (
+                      <p className={`text-xs ${getNoticeClass(avatarNotice)}`}>{avatarNotice.text}</p>
+                    ) : (
+                      <p className="text-xs text-[var(--text-muted)]">
+                        Upload a square image around 512px for the sharpest avatar.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeModal === "password" && (
+              <form className="mt-6 space-y-4" onSubmit={handlePasswordSubmit}>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <label className="space-y-1 text-sm">
+                    <span className="font-medium text-[var(--text-secondary)]">Current password</span>
+                    <input
+                      type="password"
+                      value={passwordForm.current}
+                      onChange={handlePasswordChange("current")}
+                      placeholder="********"
+                      disabled={updatingPassword}
+                      className="w-full"
+                    />
+                  </label>
+                  <label className="space-y-1 text-sm">
+                    <span className="font-medium text-[var(--text-secondary)]">New password</span>
+                    <input
+                      type="password"
+                      value={passwordForm.next}
+                      onChange={handlePasswordChange("next")}
+                      placeholder="********"
+                      disabled={updatingPassword}
+                      className="w-full"
+                    />
+                  </label>
+                  <label className="space-y-1 text-sm">
+                    <span className="font-medium text-[var(--text-secondary)]">Confirm password</span>
+                    <input
+                      type="password"
+                      value={passwordForm.confirm}
+                      onChange={handlePasswordChange("confirm")}
+                      placeholder="********"
+                      disabled={updatingPassword}
+                      className="w-full"
+                    />
+                  </label>
+                </div>
+                {passwordNotice.text && (
+                  <p className={`text-xs ${getNoticeClass(passwordNotice)}`}>{passwordNotice.text}</p>
+                )}
+                <button type="submit" className="btn-primary" disabled={updatingPassword}>
+                  {updatingPassword ? "Updating..." : "Update password"}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 

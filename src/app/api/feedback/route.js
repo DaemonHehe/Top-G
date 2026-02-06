@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
-import clientPromise from "../../lib/mongodb";
+import { supabaseAdmin } from "../../lib/supabase";
+import { getRequestIp, rateLimit } from "../../lib/rate-limit";
 
 const MAX_MESSAGE_LENGTH = 2000;
+const RATE_LIMIT = { limit: 5, windowMs: 60_000 };
 
 let cachedTransporter = null;
 
@@ -35,7 +37,7 @@ function getMailTransporter() {
 }
 
 function escapeHtml(value) {
-  return String(value ?? "").replace(/[&<>\"]/g, (char) => {
+  return String(value ?? "").replace(/[&<>"]/g, (char) => {
     switch (char) {
       case "&":
         return "&amp;";
@@ -121,44 +123,58 @@ export async function POST(request) {
     return NextResponse.json({ message: "Message is too long." }, { status: 400 });
   }
 
-  try {
-    const client = await clientPromise;
-    const db = client.db();
-    const feedbackCollection = db.collection("feedback");
+  const ip = getRequestIp(request);
+  const rate = rateLimit(`feedback:${ip}`, RATE_LIMIT);
+  if (!rate.ok) {
+    const retryAfter = Math.max(Math.ceil((rate.reset - Date.now()) / 1000), 1);
+    return NextResponse.json(
+      { message: "Too many requests. Slow down and try again soon." },
+      { status: 429, headers: { "Retry-After": String(retryAfter) } },
+    );
+  }
 
-    const document = {
+  try {
+    const createdAt = new Date().toISOString();
+    const record = {
       name,
       email: email.toLowerCase(),
       message,
-      createdAt: new Date(),
+      created_at: createdAt,
       metadata: {
         userAgent: request.headers.get("user-agent") || null,
         origin: request.headers.get("origin") || null,
       },
     };
 
-    await feedbackCollection.insertOne(document);
+    const { error: insertError } = await supabaseAdmin
+      .from("feedback")
+      .insert(record);
 
+    if (insertError) {
+      console.error("Feedback submission error:", insertError);
+      return NextResponse.json({ message: "We couldn't record your feedback. Try again later." }, { status: 500 });
+    }
+
+    let emailWarning = null;
     try {
       await sendFeedbackEmail({
         name,
         email,
         message,
-        createdAt: document.createdAt,
+        createdAt,
       });
     } catch (emailError) {
+      emailWarning = "We saved your feedback but couldn't notify the team via email right now.";
       console.error("Feedback email send error:", emailError);
-      return NextResponse.json(
-        {
-          message: "We saved your feedback but couldn't notify the team via email. Please try again later.",
-        },
-        { status: 500 },
-      );
     }
 
-    return NextResponse.json({ message: "Thanks for sharing! We'll follow up soon." }, { status: 201 });
+    return NextResponse.json(
+      { message: "Thanks for sharing! We'll follow up soon.", warning: emailWarning },
+      { status: 201 },
+    );
   } catch (error) {
     console.error("Feedback submission error:", error);
     return NextResponse.json({ message: "We couldn't record your feedback. Try again later." }, { status: 500 });
   }
 }
+

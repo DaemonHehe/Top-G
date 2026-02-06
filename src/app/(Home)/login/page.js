@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { Eye, EyeOff } from "lucide-react";
-import GoogleLoginClient from "../../components/GoogleLoginClient";
+import { supabaseBrowser } from "../../lib/supabase-browser";
 
 export default function Login() {
   const [formData, setFormData] = useState({
@@ -23,25 +23,16 @@ export default function Login() {
     setError("");
 
     try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          email: formData.email.trim(),
-          password: formData.password,
-        }),
+      const { error: authError } = await supabaseBrowser.auth.signInWithPassword({
+        email: formData.email.trim(),
+        password: formData.password,
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
+      if (!authError) {
         router.replace("/dashboard");
         router.refresh();
       } else {
-        setError(data.message || "Login failed");
+        setError(authError.message || "Login failed");
       }
     } catch (loginError) {
       console.error("Login request failed", loginError);
@@ -69,7 +60,7 @@ export default function Login() {
           Back to landing
         </Link>
 
-        <div className="w-full overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-xl">
+        <div className="w-full overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface)] shadow-xl animate-fade-up">
           <div className="flex flex-col gap-8 p-6 sm:p-10 lg:flex-row lg:p-12">
             <div className="flex-1">
               <div className="mb-8 text-center lg:text-left">
@@ -83,11 +74,6 @@ export default function Login() {
               </div>
 
               {error && <div className="theme-badge-danger mb-6 text-center lg:text-left">{error}</div>}
-
-              {/* Google Login Component */}
-              <div className="mb-8">
-                <GoogleLoginClient />
-              </div>
 
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="space-y-2">

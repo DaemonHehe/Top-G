@@ -1,0 +1,22 @@
+{
+  "name": "Top-G",
+  "short_name": "Top-G",
+  "description": "Productivity Suite",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f6f1ea",
+  "theme_color": "#ef4444",
+  "icons": [
+    {
+      "src": "/topg-logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/Top-G-logo.png",
+      "sizes": "1024x1024",
+      "type": "image/png"
+    }
+  ]
+}
