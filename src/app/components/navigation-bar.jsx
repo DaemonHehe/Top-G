@@ -5,6 +5,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabaseBrowser } from "../lib/supabase-browser";
+import { PwaInstallButton } from "./pwa-install-button";
 
 const NAV_LINKS = [
   { href: "/dashboard", label: "Home" },
@@ -102,6 +103,11 @@ export default function NavigationBar() {
             ))}
           </nav>
           <div className="flex items-center gap-3">
+            <PwaInstallButton
+              wrapperClassName="hidden md:inline-flex"
+              className="btn-secondary text-sm font-medium"
+              label="Install app"
+            />
             {/* Mobile hamburger */}
             <button
               type="button"
@@ -138,6 +144,12 @@ export default function NavigationBar() {
                 {link.label}
               </Link>
             ))}
+            <PwaInstallButton
+              wrapperClassName="w-full"
+              className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              label="Install app"
+              fullWidth
+            />
             <button
               type="button"
               onClick={handleLogout}
