@@ -5,6 +5,7 @@ import "./globals.css";
 import { ThemeProvider } from "./components/theme-provider";
 import { ThemeToggle } from "./components/theme-toggle";
 import { PwaRegister } from "./components/pwa-register";
+import { Analytics } from "@vercel/analytics/next";
 
 const sora = Sora({
   variable: "--font-ui",
@@ -57,6 +58,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
           </div>
         </ThemeProvider>
         <PwaRegister />
+        <Analytics />
       </body>
     </html>
   );
