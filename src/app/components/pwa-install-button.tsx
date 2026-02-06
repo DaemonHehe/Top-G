@@ -36,7 +36,7 @@ export function PwaInstallButton({
     const checkInstalled = () => {
       const standalone =
         window.matchMedia?.("(display-mode: standalone)")?.matches ||
-        window.navigator.standalone === true;
+        (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
       setIsInstalled(Boolean(standalone));
     };
 
