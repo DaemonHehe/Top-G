@@ -31,6 +31,9 @@ export default function Register() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const router = useRouter();
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    (typeof window !== "undefined" ? window.location.origin : "");
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -43,6 +46,7 @@ export default function Register() {
         email: formData.email.trim(),
         password: formData.password,
         options: {
+          emailRedirectTo: siteUrl ? `${siteUrl}/dashboard` : undefined,
           data: {
             name: formData.name.trim(),
           },
@@ -80,7 +84,7 @@ export default function Register() {
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
         <Link href="/" className="inline-flex items-center gap-3 self-center text-sm font-semibold text-[var(--text-secondary)] transition hover:text-[var(--accent)]">
           <span className="relative h-10 w-10 overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface)]">
-            <Image src="/Top-G-logo.png" alt="Top G" fill sizes="40px" className="object-contain" />
+            <Image src="/topglogo.png" alt="Top G" fill sizes="40px" className="object-contain" />
           </span>
           Back to landing
         </Link>
@@ -195,3 +199,4 @@ export default function Register() {
     </div>
   );
 }
+

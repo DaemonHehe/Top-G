@@ -26,8 +26,9 @@ export const metadata: Metadata = {
     title: "Top-G",
   },
   icons: {
-    icon: "/topg-logo.svg",
-    apple: "/Top-G-logo.png",
+    icon: "/topglogo.png",
+    apple: "/topglogo.png",
+    shortcut: "/favicon.png",
   },
 };
 
@@ -61,3 +62,4 @@ export default function RootLayout({ children }: RootLayoutProps) {
     </html>
   );
 }
+

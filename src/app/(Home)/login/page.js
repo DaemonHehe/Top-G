@@ -55,7 +55,7 @@ export default function Login() {
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-10">
         <Link href="/" className="inline-flex items-center gap-3 self-center text-sm font-semibold text-[var(--text-secondary)] transition hover:text-[var(--accent)]">
           <span className="relative h-10 w-10 overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface)]">
-            <Image src="/Top-G-logo.png" alt="Top G" fill sizes="40px" className="object-contain" />
+            <Image src="/topglogo.png" alt="Top G" fill sizes="40px" className="object-contain" />
           </span>
           Back to landing
         </Link>
@@ -147,3 +147,4 @@ export default function Login() {
     </div>
   );
 }
+

@@ -82,7 +82,7 @@ export default function NavigationBar() {
         <div className="flex h-16 items-center justify-between gap-4">
           <Link href={isAuthed ? "/dashboard" : "/"} className="flex items-center gap-3 min-w-0">
             <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-2xl bg-[var(--surface-muted)]">
-              <Image src="/Top-G-logo.png" alt="Top G" fill sizes="40px" priority className="object-contain" />
+              <Image src="/topglogo.png" alt="Top G" fill sizes="40px" priority className="object-contain" />
             </span>
             <div className="flex min-w-0 flex-col leading-tight">
               <span className="text-base font-semibold text-[var(--text-primary)]">Top G</span>
@@ -164,3 +164,4 @@ export default function NavigationBar() {
     </header>
   );
 }
+

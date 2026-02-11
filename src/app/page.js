@@ -33,7 +33,7 @@ export default function LandingPage() {
             Elite execution suite
           </span>
           <div className="flex flex-col items-center gap-4 sm:gap-5">
-            <Image src="/Top-G-logo.png" alt="Top G" width={68} height={68} className="h-16 w-16 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-2 shadow-sm" priority />
+            <Image src="/topglogo.png" alt="Top G" width={68} height={68} className="h-16 w-16 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-2 shadow-sm" priority />
             <h1 className="text-balance text-4xl font-semibold leading-tight text-[var(--text-primary)] sm:text-5xl lg:text-6xl">
               Operate like the <span className="text-[var(--accent)]">Top G</span> you are
             </h1>
@@ -97,3 +97,4 @@ export default function LandingPage() {
     </div>
   );
 }
+

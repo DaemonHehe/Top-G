@@ -2,8 +2,7 @@ const CACHE_NAME = "topg-static-v1";
 const STATIC_ASSETS = [
   "/",
   "/manifest.webmanifest",
-  "/Top-G-logo.png",
-  "/topg-logo.svg",
+  "/topglogo.png",
 ];
 
 self.addEventListener("install", (event) => {
@@ -59,3 +58,4 @@ self.addEventListener("fetch", (event) => {
     }),
   );
 });
+
